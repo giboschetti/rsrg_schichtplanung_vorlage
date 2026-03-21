@@ -1196,6 +1196,12 @@ function embedAppJsInSerializedHtml(html, jsEscaped) {
 }
 
 async function inlineBundledAssets(html) {
+  const scrExternal = document.querySelector('script[src="js/app.js"]')
+    || document.querySelector('script[src="./js/app.js"]')
+    || Array.prototype.find.call(document.scripts, s => isAppJsScriptSrc(s.getAttribute('src') || ''));
+  /** Einzeldatei-Export: app.js/CSS sind schon im HTML; kein externes app.js → kein fetch (unter file:// meist blockiert). */
+  if (!scrExternal) return html;
+
   let out = html;
   const link = document.querySelector('link[rel="stylesheet"][href="css/styles.css"]')
     || document.querySelector('link[rel="stylesheet"][href$="styles.css"]');
@@ -1205,11 +1211,7 @@ async function inlineBundledAssets(html) {
     const css = (await (await fetch(abs)).text()).replace(/<\/style>/gi, '<\\/style>');
     out = out.replace(/<link[^>]*rel=["']stylesheet["'][^>]*href=["'][^"']*styles\.css["'][^>]*>/i, '<style>\n' + css + '\n</style>');
   }
-  const scr = document.querySelector('script[src="js/app.js"]')
-    || document.querySelector('script[src="./js/app.js"]')
-    || Array.prototype.find.call(document.scripts, s => isAppJsScriptSrc(s.getAttribute('src') || ''));
-  if (!scr) throw new Error('Kein app.js-Skript-Tag im Dokument');
-  const href = scr.getAttribute('src');
+  const href = scrExternal.getAttribute('src');
   const abs = new URL(href, document.baseURI).href;
   const js = escapeJsForHtmlScript(await (await fetch(abs)).text());
   out = embedAppJsInSerializedHtml(out, js);
