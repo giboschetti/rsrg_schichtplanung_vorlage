@@ -920,6 +920,18 @@ function initSDPTables(kwId, dayIdx, shift) {
 
 const SDP_SECTIONS = ['tasks', 'personal', 'inventar', 'material', 'fremdleistung'];
 
+function cellHasData(cell) {
+  if (!cell || typeof cell !== 'object') return false;
+  return SDP_SECTIONS.some(s => Array.isArray(cell[s]) && cell[s].length > 0);
+}
+
+/** Lesen aus exportiertem Snapshot (gleiche Keys wie workItems). */
+function getSectionFromSnapshot(snap, kwId, dayIdx, shift, section) {
+  const k = wiKey(kwId, dayIdx, shift);
+  const c = (snap && snap.workItems && snap.workItems[k]) || {};
+  return Array.isArray(c[section]) ? c[section] : [];
+}
+
 function serializeSDPTable(tbl) {
   return tbl.getData().map(d => {
     const clean = { id: d.id || Math.random().toString(36).slice(2) };
@@ -1111,13 +1123,280 @@ function addPDFSection(doc, id, title, yRef) {
   return doc.lastAutoTable.finalY + 8;
 }
 
-function exportAllPDF() {
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function loadPdfLogoBytes() {
+  const paths = ['assets/logo-rhomberg-sersa.jpg', 'assets/logo-rhomberg-sersa.png'];
+  for (const path of paths) {
+    try {
+      const r = await fetch(new URL(path, document.baseURI).href);
+      if (!r.ok) continue;
+      const buf = await r.arrayBuffer();
+      const format = path.endsWith('.png') ? 'PNG' : 'JPEG';
+      return { format, data: arrayBufferToBase64(buf) };
+    } catch (_) { /* next */ }
+  }
+  return null;
+}
+
+function pdfDeCHDate() {
+  return new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function pdfLayoutHeader(doc, opts) {
+  const { logo, projectName, printDate } = opts;
+  const W = doc.internal.pageSize.getWidth();
+  const bandH = 14;
+  doc.setFillColor(248, 246, 240);
+  doc.rect(0, 0, W, bandH + 2, 'F');
+  const logoY = 4;
+  let logoH = 7;
+  let logoW = logoH * (996 / 359);
+  if (logoW > 36) {
+    logoW = 36;
+    logoH = logoW * (359 / 996);
+  }
+  if (logo) {
+    doc.addImage(logo.data, logo.format, 12, logoY, logoW, logoH, undefined, 'FAST');
+  } else {
+    doc.setDrawColor(180, 175, 165);
+    doc.rect(12, logoY, 22, logoH, 'S');
+    doc.setFontSize(6); doc.setTextColor(140);
+    doc.text('LOGO', 14, logoY + 4.2);
+  }
+  doc.setTextColor(36, 36, 38);
+  doc.setFontSize(11); doc.setFont(undefined, 'bold');
+  doc.text((projectName || '').trim() || 'Schichtplanung', W / 2, logoY + 4.8, { align: 'center' });
+  doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(90, 88, 82);
+  doc.text('Ausdruck: ' + printDate, W - 12, logoY + 4.8, { align: 'right' });
+  doc.setTextColor(0);
+  doc.setLineWidth(1);
+  doc.setDrawColor(36, 36, 38);
+  doc.line(12, bandH + 1.5, W - 12, bandH + 1.5);
+  return bandH + 7;
+}
+
+function applyUnifiedPdfFooters(doc) {
+  const total = doc.internal.getNumberOfPages();
+  const note = 'Exportiert: ' + pdfDeCHDate();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    doc.setFontSize(7); doc.setTextColor(130);
+    doc.text('Seite ' + i + ' / ' + total, W / 2, H - 6.5, { align: 'center' });
+    doc.text(note, 12, H - 6.5);
+  }
+}
+
+const PDF_TABLE_BASE = {
+  styles: { fontSize: 7, cellPadding: 1.4, textColor: [36, 36, 38] },
+  headStyles: { fillColor: [42, 42, 44], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+  alternateRowStyles: { fillColor: [252, 250, 244] },
+  tableLineColor: [210, 206, 196],
+  tableLineWidth: 0.08,
+};
+
+function pdfStammdatenRows(snap) {
+  const sd = snap.stammdaten || {};
+  const sc = snap.shiftConfig || {};
+  return [
+    ['Projektname', sd.projektname || ''],
+    ['Projektnummer', sd.projektnummer || ''],
+    ['Auftraggeber', sd.auftraggeber || ''],
+    ['Bauleiter', sd.bauleiter || ''],
+    ['Polier', sd.polier || ''],
+    ['Standort', sd.standort || ''],
+    ['Baubeginn', sd.baubeginn || ''],
+    ['Bauende', sd.bauende || ''],
+    ['Schicht Tag', `${sc.tag?.von || ''} – ${sc.tag?.bis || ''}`],
+    ['Schicht Nacht', `${sc.nacht?.von || ''} – ${sc.nacht?.bis || ''}`],
+  ];
+}
+
+function pdfWeekColumnHeads() {
+  const head = ['Ressource'];
+  TL_DAYS.forEach(d => {
+    head.push(d + ' T', d + ' N');
+  });
+  return [head];
+}
+
+function pdfWeekGridBody(snap, kw) {
+  return TL_GROUPS.map(g => {
+    const row = [g.label];
+    TL_DAYS.forEach((_, dayIdx) => {
+      TL_SHIFTS.forEach(sh => {
+        const items = getSectionFromSnapshot(snap, kw.id, dayIdx, sh.id, g.section);
+        let t = items.map(it => getItemLabel(it, g.section)).filter(Boolean).join(', ');
+        if (t.length > 52) t = t.slice(0, 50) + '…';
+        row.push(t || '–');
+      });
+    });
+    return row;
+  });
+}
+
+function pdfShiftMetaLines(snap, kw, dayIdx, sh) {
+  const dayName = TL_DAYS[dayIdx] || String(dayIdx);
+  const shLabel = sh.id === 'T' ? 'Tag' : 'Nacht';
+  const sc = snap.shiftConfig || {};
+  const times = sh.id === 'T'
+    ? `${sc.tag?.von || ''} – ${sc.tag?.bis || ''}`
+    : `${sc.nacht?.von || ''} – ${sc.nacht?.bis || ''}`;
+  return [
+    'Kalenderwoche: ' + (kw.label || kw.id),
+    'Tag: ' + dayName,
+    'Schicht: ' + shLabel + ' (' + times + ')',
+  ];
+}
+
+function rowsOrDash(rows, width) {
+  if (rows && rows.length) return rows;
+  return [Array(width).fill('–')];
+}
+
+function pdfDrawShiftBlock(doc, title, x, y, w, head, rows) {
+  doc.setFontSize(8); doc.setFont(undefined, 'bold'); doc.setTextColor(42, 42, 44);
+  doc.text(title, x, y);
+  const tableTop = y + 3.5;
+  const pageW = doc.internal.pageSize.getWidth();
+  doc.autoTable({
+    ...PDF_TABLE_BASE,
+    head: [head],
+    body: rowsOrDash(rows, head.length),
+    startY: tableTop,
+    margin: { left: x, right: Math.max(8, pageW - x - w) },
+    tableWidth: w,
+    styles: { ...PDF_TABLE_BASE.styles, fontSize: 6 },
+    headStyles: { ...PDF_TABLE_BASE.headStyles, fontSize: 6 },
+  });
+  return doc.lastAutoTable.finalY + 5;
+}
+
+async function exportAllPDF() {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  let y = buildPDFHeader(doc, 'SCHICHTPLANUNG', '');
-  y = addPDFSection(doc, 'mitarbeiter', 'Mitarbeiter', y);
-  addPDFFooters(doc);
-  doc.save('Schichtplanung_Gesamt.pdf');
+  if (!jsPDF) {
+    showToast('PDF-Bibliothek fehlt');
+    return;
+  }
+
+  const snap = buildExportSnapshot();
+  const logo = await loadPdfLogoBytes();
+  const printDate = pdfDeCHDate();
+  const projName = (snap.stammdaten && snap.stammdaten.projektname) ? snap.stammdaten.projektname.trim() : '';
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const hdrOpts = { logo, projectName: projName, printDate };
+
+  let y = pdfLayoutHeader(doc, hdrOpts);
+  doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(42, 42, 44);
+  doc.text('PROJEKT STAMMDATEN', 12, y);
+  y += 6;
+  doc.autoTable({
+    ...PDF_TABLE_BASE,
+    head: [['Feld', 'Wert']],
+    body: pdfStammdatenRows(snap),
+    startY: y,
+    margin: { left: 12, right: 12 },
+  });
+  y = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(11); doc.setFont(undefined, 'bold');
+  doc.text('KONTAKT LISTE', 12, y);
+  y += 6;
+  const mitHead = ['Name', 'Vorname', 'Funktion', 'Firma', 'Tel', 'Email', 'Bemerkung'];
+  const mitRows = (snap.tables && snap.tables.mitarbeiter) ? snap.tables.mitarbeiter.map(r => [
+    r.name || '', r.vorname || '', r.funktion || '', r.firma || '', r.tel || '', r.email || '', r.bemerkung || '',
+  ]) : [];
+  doc.autoTable({
+    ...PDF_TABLE_BASE,
+    head: [mitHead],
+    body: rowsOrDash(mitRows, mitHead.length),
+    startY: y,
+    margin: { left: 12, right: 12 },
+    styles: { ...PDF_TABLE_BASE.styles, fontSize: 6 },
+    headStyles: { ...PDF_TABLE_BASE.headStyles, fontSize: 6 },
+  });
+
+  (snap.kwList || []).forEach(kw => {
+    doc.addPage('a4', 'l');
+    let yL = pdfLayoutHeader(doc, hdrOpts);
+    doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(42, 42, 44);
+    doc.text(kw.label || ('KW ' + kw.num), doc.internal.pageSize.getWidth() / 2, yL, { align: 'center' });
+    yL += 8;
+    doc.autoTable({
+      ...PDF_TABLE_BASE,
+      head: pdfWeekColumnHeads(),
+      body: pdfWeekGridBody(snap, kw),
+      startY: yL,
+      margin: { left: 10, right: 10 },
+      styles: { ...PDF_TABLE_BASE.styles, fontSize: 5.5, cellPadding: 1 },
+      headStyles: { ...PDF_TABLE_BASE.headStyles, fontSize: 5.5 },
+    });
+  });
+
+  const sortedKw = [...(snap.kwList || [])].sort((a, b) =>
+    (a.year !== b.year ? a.year - b.year : a.num - b.num));
+  sortedKw.forEach(kw => {
+    TL_DAYS.forEach((_, dayIdx) => {
+      TL_SHIFTS.forEach(sh => {
+        const key = wiKey(kw.id, dayIdx, sh.id);
+        const cell = (snap.workItems && snap.workItems[key]) || {};
+        if (!cellHasData(cell)) return;
+        doc.addPage('a4', 'p');
+        let ys = pdfLayoutHeader(doc, hdrOpts);
+        doc.setFontSize(10); doc.setFont(undefined, 'bold');
+        doc.text('SHIFT DATA', 12, ys);
+        ys += 5;
+        doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(50, 50, 50);
+        pdfShiftMetaLines(snap, kw, dayIdx, sh).forEach((line, i) => {
+          doc.text(line, 12, ys + i * 4.5);
+        });
+        ys += 16;
+        doc.setTextColor(0);
+
+        const tasks = (cell.tasks || []).map(it => [
+          it.name || '', it.location || '', it.category || '', it.status || '', it.resStatus || '', it.notes || '',
+        ]);
+        ys = pdfDrawShiftBlock(doc, 'TÄTIGKEITEN', 12, ys, doc.internal.pageSize.getWidth() - 24,
+          ['Tätigkeit', 'Ort', 'Kategorie', 'Arbeitsstatus', 'Res.status', 'Notizen'], tasks);
+
+        const pageW = doc.internal.pageSize.getWidth();
+        const m = 12;
+        const gap = 4;
+        const colW = (pageW - 2 * m - gap) / 2;
+        const yGrid = ys;
+        const pers = (cell.personal || []).map(it => [it.funktion || '', it.name || '', it.resStatus || '', it.bemerkung || '']);
+        const inv = (cell.inventar || []).map(it => [it.geraet || '', String(it.anzahl ?? ''), it.resStatus || '', it.bemerkung || '']);
+        const mat = (cell.material || []).map(it => [it.material || '', String(it.menge ?? ''), it.einheit || '', it.resStatus || '', it.bemerkung || '']);
+        const fr = (cell.fremdleistung || []).map(it => [it.firma || '', it.leistung || '', it.resStatus || '', it.bemerkung || '']);
+
+        const y1 = pdfDrawShiftBlock(doc, 'PERSONAL', m, yGrid, colW,
+          ['Funktion', 'Name', 'Res.status', 'Bemerkung'], pers);
+        const y2 = pdfDrawShiftBlock(doc, 'INVENTAR', m + colW + gap, yGrid, colW,
+          ['Gerät', 'Anz.', 'Res.status', 'Bemerkung'], inv);
+        ys = Math.max(y1, y2);
+        pdfDrawShiftBlock(doc, 'MATERIAL', m, ys, colW,
+          ['Material', 'Menge', 'Einh.', 'Res.status', 'Bemerkung'], mat);
+        pdfDrawShiftBlock(doc, 'FREMDLEISTUNG', m + colW + gap, ys, colW,
+          ['Firma', 'Leistung', 'Res.status', 'Bemerkung'], fr);
+      });
+    });
+  });
+
+  applyUnifiedPdfFooters(doc);
+  const fname = projName
+    ? 'Schichtplanung_' + projName.replace(/[^\w\-äöüÄÖÜ ]/g, '').replace(/\s+/g, '_') + '.pdf'
+    : 'Schichtplanung_Gesamt.pdf';
+  doc.save(fname);
   showToast('PDF exportiert');
 }
 
@@ -1223,26 +1502,31 @@ async function inlineBundledAssets(html) {
   return out;
 }
 
-async function saveToFile() {
-  const sdIds = ['projektname','projektnummer','auftraggeber','bauleiter','polier','standort','baubeginn','bauende'];
+function buildExportSnapshot() {
+  flushOpenSDPTables();
+  const sdIds = ['projektname', 'projektnummer', 'auftraggeber', 'bauleiter', 'polier', 'standort', 'baubeginn', 'bauende'];
   const stammdaten = {};
   sdIds.forEach(id => {
     const el = document.getElementById('sd-' + id);
     if (el) stammdaten[id] = el.value;
   });
-
   const snapshot = {
     savedAt:     new Date().toISOString(),
     stammdaten,
-    shiftConfig,
+    shiftConfig: JSON.parse(JSON.stringify(shiftConfig)),
     kwList:      JSON.parse(JSON.stringify(kwList)),
     tables:      {},
     workItems:   JSON.parse(JSON.stringify(workItems)),
   };
-
   Object.entries(tables).forEach(([id, tbl]) => {
-    snapshot.tables[id] = tbl.getData();
+    try { snapshot.tables[id] = tbl.getData(); } catch (e) { snapshot.tables[id] = []; }
   });
+  return snapshot;
+}
+
+async function saveToFile() {
+  const snapshot = buildExportSnapshot();
+  const stammdaten = snapshot.stammdaten;
 
   const dataJson = JSON.stringify(snapshot).replace(/</g, '\\u003c');
   let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
