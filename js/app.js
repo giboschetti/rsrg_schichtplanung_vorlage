@@ -1183,14 +1183,14 @@ async function inlineBundledAssets(html) {
   if (link && (link.getAttribute('href') || '').includes('styles.css') && !link.href.includes('tabulator')) {
     const href = link.getAttribute('href');
     const abs = new URL(href, document.baseURI).href;
-    const css = await (await fetch(abs)).text();
+    const css = (await (await fetch(abs)).text()).replace(/<\/style>/gi, '<\\/style>');
     out = out.replace(/<link[^>]*rel=["']stylesheet["'][^>]*href=["'][^"']*styles\.css["'][^>]*>/i, '<style>\n' + css + '\n</style>');
   }
   const scr = document.querySelector('script[src="js/app.js"]');
   if (scr) {
     const href = scr.getAttribute('src');
     const abs = new URL(href, document.baseURI).href;
-    const js = await (await fetch(abs)).text();
+    const js = (await (await fetch(abs)).text()).replace(/<\/script>/gi, '<\\/script>');
     const esc = href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     out = out.replace(new RegExp('<script[^>]*src=["\']' + esc + '["\'][^>]*>\\s*</script>', 'i'), '<script>\n' + js + '\n</script>');
   }
