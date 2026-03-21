@@ -1176,6 +1176,25 @@ function saveToFileFallbackDownload(blob, filename) {
 }
 
 /** Multi-file-Setup: gespeicherte HTML muss CSS/JS eingebettet haben (Portabel wie Einzeldatei). */
+function escapeJsForHtmlScript(js) {
+  return js.replace(/<\/script>/gi, '<\\/script>');
+}
+
+function isAppJsScriptSrc(src) {
+  if (!src) return false;
+  const s = src.trim();
+  return /(?:^|[\\/])app\.js(?:\?|#|$)/i.test(s);
+}
+
+/** Ersetzt externes app.js im serialisierten HTML; outerHTML kann src anders quoten/ordnen als ein einfaches Regex. */
+function embedAppJsInSerializedHtml(html, jsEscaped) {
+  const inlined = '<script>\n' + jsEscaped + '\n</script>';
+  return html.replace(
+    /<script\b[^>]*\bsrc\s*=\s*(["'])([^"']*)\1[^>]*>\s*<\/script>/gi,
+    (full, _q, src) => (isAppJsScriptSrc(src) ? inlined : full)
+  );
+}
+
 async function inlineBundledAssets(html) {
   let out = html;
   const link = document.querySelector('link[rel="stylesheet"][href="css/styles.css"]')
@@ -1186,14 +1205,19 @@ async function inlineBundledAssets(html) {
     const css = (await (await fetch(abs)).text()).replace(/<\/style>/gi, '<\\/style>');
     out = out.replace(/<link[^>]*rel=["']stylesheet["'][^>]*href=["'][^"']*styles\.css["'][^>]*>/i, '<style>\n' + css + '\n</style>');
   }
-  const scr = document.querySelector('script[src="js/app.js"]');
-  if (scr) {
-    const href = scr.getAttribute('src');
-    const abs = new URL(href, document.baseURI).href;
-    const js = (await (await fetch(abs)).text()).replace(/<\/script>/gi, '<\\/script>');
-    const esc = href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp('<script[^>]*src=["\']' + esc + '["\'][^>]*>\\s*</script>', 'i'), '<script>\n' + js + '\n</script>');
+  const scr = document.querySelector('script[src="js/app.js"]')
+    || document.querySelector('script[src="./js/app.js"]')
+    || Array.prototype.find.call(document.scripts, s => isAppJsScriptSrc(s.getAttribute('src') || ''));
+  if (!scr) throw new Error('Kein app.js-Skript-Tag im Dokument');
+  const href = scr.getAttribute('src');
+  const abs = new URL(href, document.baseURI).href;
+  const js = escapeJsForHtmlScript(await (await fetch(abs)).text());
+  out = embedAppJsInSerializedHtml(out, js);
+  let appJsStillExternal = false;
+  for (const m of out.matchAll(/<script\b[^>]*\bsrc\s*=\s*(["'])([^"']*)\1[^>]*>/gi)) {
+    if (isAppJsScriptSrc(m[2])) { appJsStillExternal = true; break; }
   }
+  if (appJsStillExternal) throw new Error('app.js konnte nicht eingebettet werden (HTML-Struktur unerwartet)');
   return out;
 }
 
@@ -1218,7 +1242,7 @@ async function saveToFile() {
     snapshot.tables[id] = tbl.getData();
   });
 
-  const dataJson = JSON.stringify(snapshot).replace(/<\/script>/gi, '<\\/script>');
+  const dataJson = JSON.stringify(snapshot).replace(/</g, '\\u003c');
   let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
   html = html.replace(
     /<script id="savedData" type="application\/json">[\s\S]*?<\/script>/,
@@ -1338,13 +1362,18 @@ function clearAllData() {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
-window.addEventListener('DOMContentLoaded', () => {
+function runAppInit() {
   loadFromEmbeddedData();
   loadWorkItemsLS();
   loadStammdaten();
   loadShiftConfig();
   updateHeaderProj();
-  initStaticTables();
+  try {
+    initStaticTables();
+  } catch (e) {
+    console.warn('Tabulator / Stammdaten-Tabelle:', e);
+    showToast('Hinweis: Tabellen-Modul (CDN) nicht geladen — Seite mit Internet öffnen oder http(s) nutzen.');
+  }
 
   loadKWList().forEach(kw => {
     if (!kwList.find(k => k.id === kw.id)) {
@@ -1387,4 +1416,10 @@ window.addEventListener('DOMContentLoaded', () => {
   }, true);
 
   window.addEventListener('beforeunload', () => { flushOpenSDPTables(); });
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', runAppInit);
+} else {
+  runAppInit();
+}
