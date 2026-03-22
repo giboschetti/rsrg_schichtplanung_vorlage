@@ -148,11 +148,6 @@
   <div class="page active" id="page-uebersicht">
     <div class="page-hdr">
       <div class="page-title">Übersicht ganze Baustelle</div>
-      <div class="export-bar">
-        <span class="export-lbl">Export:</span>
-        <button class="btn btn-success" onclick="exportUebersichtXLSX()">↓ XLSX</button>
-        <button class="btn btn-dark" onclick="exportUebersichtPDF()">↓ PDF</button>
-      </div>
     </div>
 
     <!-- KW Management -->
@@ -174,11 +169,6 @@
     <!-- Timeline controls -->
     <div class="timeline-bar">
       <div class="tl-left">
-        <div class="zoom-group">
-          <button class="zoom-btn active" data-zoom="shifts" onclick="setZoom('shifts')">Schichten</button>
-          <button class="zoom-btn" data-zoom="days" onclick="setZoom('days')">Tage</button>
-          <button class="zoom-btn" data-zoom="weeks" onclick="setZoom('weeks')">Wochen</button>
-        </div>
         <span class="tl-filter-lbl">Filter:</span>
         <button class="filter-pill active" data-grp="tasks" onclick="toggleTLFilter('tasks',this)">Tätigkeiten</button>
         <button class="filter-pill active" data-grp="personal" onclick="toggleTLFilter('personal',this)">Personal</button>

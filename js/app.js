@@ -24,7 +24,7 @@ const tables = {};
 const kwList = []; // [{id, label, num, year, dateFrom, dateTo}]
 
 // workItems[key] = {
-//   tasks:         [{id, name, location, category, status, resStatus, notes}]
+//   tasks:         [{id, name, location, description, status, notes}]
 //   personal:      [{id, name, funktion, resStatus, bemerkung}]
 //   inventar:      [{id, geraet, anzahl, resStatus, bemerkung}]
 //   material:      [{id, material, menge, einheit, resStatus, bemerkung}]
@@ -373,7 +373,7 @@ function loadWorkItemsLS() {
             id: it.id || Math.random().toString(36).slice(2),
             name: it.name || '',
             location: it.location || '',
-            category: it.category || '',
+            description: it.description || '',
             status: it.status || 'Offen',
             notes: it.notes || '',
           })), personal: [], inventar: [], material: [], fremdleistung: [] };
@@ -647,7 +647,7 @@ function tlBlockClassFromResStatus(it) {
 
 function tlBlockTitle(it, sectionId) {
   if (sectionId === 'tasks')
-    return [it.name, it.resStatus, it.status].filter(Boolean).join(' · ');
+        return [it.name, it.status].filter(Boolean).join(' · ');
   if (sectionId === 'personal') {
     const fn = (it.funktion || '').trim();
     const nm = (it.name || '').trim();
@@ -830,12 +830,15 @@ function initSDPTables(kwId, dayIdx, shift) {
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'tasks'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'tasks'),
     columns: [
-      { title: 'Tätigkeit', field: 'name',     editor: 'input', widthGrow: 2 },
-      { title: 'Bereich / Ort', field: 'location', editor: 'input', widthGrow: 1 },
-      { title: 'Kategorie',     field: 'category', editor: 'list', width: 130,
-        editorParams: { values: ['Aushub','Betonierung','Montage','Demontage',
-          'Logistik','Sicherung','Vermessung','Sonstiges'], autocomplete: true } },
-      { title: 'Arbeitsstatus', field: 'status', width: 118,
+      { title: 'Tätigkeit', field: 'name',        editor: 'input', widthGrow: 2 },
+      { title: 'Bereich / Ort', field: 'location',editor: 'input', widthGrow: 1 },
+      { title: 'Beschreibung', field: 'description',
+        editor: 'textarea', widthGrow: 3,
+        formatter: (cell) => {
+          const v = cell.getValue() || '';
+          return `<span style="white-space:pre-wrap;">${v}</span>`;
+        } },
+      { title: 'Status', field: 'status', width: 118,
         editor: sdpNativeSelectEditor(['Offen','In Arbeit','Erledigt','Verschoben','Gesperrt']),
         formatter: (cell) => {
           const v = cell.getValue() || '';
@@ -843,8 +846,7 @@ function initSDPTables(kwId, dayIdx, shift) {
             'Verschoben':'st-verschoben','Gesperrt':'st-gesperrt' };
           return cls[v] ? `<span class="${cls[v]}">${v}</span>` : v;
         } },
-      sdpResStatusColumn(118),
-      { title: 'Notizen', field: 'notes', editor: 'input', widthGrow: 1 },
+      { title: 'Notizen / Bemerkungen', field: 'notes', editor: 'input', widthGrow: 1 },
     ],
   });
 
@@ -980,7 +982,7 @@ function addSDPRow(section) {
 // ─── Übersicht Exports ────────────────────────────────────────────────────────
 
 function exportUebersichtXLSX() {
-  const rows = [['KW', 'Tag', 'Schicht', 'Sektion', 'Bezeichnung', 'Details', 'Status/Bemerkung']];
+  const rows = [['KW', 'Tag', 'Schicht', 'Sektion', 'Tätigkeit', 'Bereich/Ort', 'Beschreibung', 'Status', 'Notizen']];
   Object.entries(workItems).forEach(([key, cell]) => {
     if (!cell || typeof cell !== 'object') return;
     const [kwId, dayStr, shift] = key.split('||');
@@ -989,26 +991,20 @@ function exportUebersichtXLSX() {
     const sh    = shift === 'T' ? `Tag (${shiftConfig.tag.von}–${shiftConfig.tag.bis})` : `Nacht (${shiftConfig.nacht.von}–${shiftConfig.nacht.bis})`;
 
     (cell.tasks || []).forEach(it => {
-      const det = `${it.location||''} ${it.category||''}`.trim();
-      const st = [it.resStatus, it.status].filter(Boolean).join(' / ');
-      rows.push([kw?.label||kwId, day, sh, 'Tätigkeiten', it.name||'', det, st]);
+      rows.push([kw?.label||kwId, day, sh, 'Tätigkeiten', it.name||'', it.location||'', it.description||'', it.status||'', it.notes||'']);
     });
     (cell.personal || []).forEach(it => {
-      const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
-      rows.push([kw?.label||kwId, day, sh, 'Personal', it.funktion||'', it.name||'', last]);
+      rows.push([kw?.label||kwId, day, sh, 'Personal', it.funktion||'', it.name||'', '', it.resStatus||'', it.bemerkung||'']);
     });
     (cell.inventar || []).forEach(it => {
       const mid = it.anzahl ? 'Anzahl: '+it.anzahl : '';
-      const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
-      rows.push([kw?.label||kwId, day, sh, 'Inventar', it.geraet||'', mid, last]);
+      rows.push([kw?.label||kwId, day, sh, 'Inventar', it.geraet||'', mid, '', it.resStatus||'', it.bemerkung||'']);
     });
     (cell.material || []).forEach(it => {
-      const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
-      rows.push([kw?.label||kwId, day, sh, 'Material', it.material||'', `${it.menge||''} ${it.einheit||''}`.trim(), last]);
+      rows.push([kw?.label||kwId, day, sh, 'Material', it.material||'', `${it.menge||''} ${it.einheit||''}`.trim(), '', it.resStatus||'', it.bemerkung||'']);
     });
     (cell.fremdleistung || []).forEach(it => {
-      const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
-      rows.push([kw?.label||kwId, day, sh, 'Fremdleistung', it.firma||'', it.leistung||'', last]);
+      rows.push([kw?.label||kwId, day, sh, 'Fremdleistung', it.firma||'', it.leistung||'', '', it.resStatus||'', it.bemerkung||'']);
     });
   });
   if (rows.length === 1) { showToast('Keine Einträge vorhanden'); return; }
@@ -1023,7 +1019,7 @@ function exportUebersichtPDF() {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   let y = buildPDFHeader(doc, 'ÜBERSICHT BAUSTELLE', '');
 
-  const heads = [['KW', 'Tag', 'Schicht', 'Sektion', 'Bezeichnung', 'Details', 'Status']];
+  const heads = [['KW', 'Tag', 'Schicht', 'Sektion', 'Bezeichnung', 'Ort/Details', 'Status/Bemerkung']];
   const body = [];
   Object.entries(workItems).forEach(([key, cell]) => {
     if (!cell || typeof cell !== 'object') return;
@@ -1032,7 +1028,7 @@ function exportUebersichtPDF() {
     const day = TL_DAYS[parseInt(dayStr)] || dayStr;
     const sh  = shift === 'T' ? 'Tag' : 'Nacht';
     (cell.tasks||[]).forEach(it => body.push([kw?.label||kwId, day, sh, 'Tätigkeiten', it.name||'', it.location||'',
-      [it.resStatus, it.status].filter(Boolean).join(' / ')]));
+      [it.status, it.notes].filter(Boolean).join(' / ')]));
     (cell.personal||[]).forEach(it => body.push([kw?.label||kwId, day, sh, 'Personal', it.funktion||'', it.name||'',
       [it.resStatus, it.bemerkung].filter(Boolean).join(' — ')]));
     (cell.inventar||[]).forEach(it => body.push([kw?.label||kwId, day, sh, 'Inventar', it.geraet||'', '',
@@ -1364,10 +1360,10 @@ async function exportAllPDF() {
         doc.setTextColor(0);
 
         const tasks = (cell.tasks || []).map(it => [
-          it.name || '', it.location || '', it.category || '', it.status || '', it.resStatus || '', it.notes || '',
+          it.name || '', it.location || '', it.description || '', it.status || '', it.notes || '',
         ]);
         ys = pdfDrawShiftBlock(doc, 'TÄTIGKEITEN', 12, ys, doc.internal.pageSize.getWidth() - 24,
-          ['Tätigkeit', 'Ort', 'Kategorie', 'Arbeitsstatus', 'Res.status', 'Notizen'], tasks);
+          ['Tätigkeit', 'Bereich/Ort', 'Beschreibung', 'Status', 'Notizen/Bemerkungen'], tasks);
 
         const pageW = doc.internal.pageSize.getWidth();
         const m = 12;
