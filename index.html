@@ -23,7 +23,11 @@
 <!-- ── App Header ──────────────────────────────────────────────────────── -->
 <div class="app-header">
   <div class="app-logo">
-    <img id="headerLogo" src="" alt="Rhomberg Sersa" style="height:32px;max-width:160px;object-fit:contain;display:none">
+    <img src="https://raw.githubusercontent.com/giboschetti/rsrg_schichtplanung_vorlage/main/assets/logo-rhomberg-sersa.jpg"
+         alt="RSRG" height="36" style="display:block;object-fit:contain;"
+         onerror="this.style.display='none';document.getElementById('logo-fallback').style.display='flex'">
+    <div id="logo-fallback" class="logo-mark" style="display:none;">SP</div>
+    <div class="header-divider"></div>
     <div class="app-logo-text">
       <h1>Schichtplanung</h1>
       <div class="sub">Baustellenmanagement</div>
@@ -31,11 +35,11 @@
   </div>
   <div class="header-actions">
     <span class="header-proj" id="headerProjName"></span>
-    <button id="btnSave" class="btn btn-save" onclick="saveToFile()" title="Speichern: Systemdialog wählt Ordner &amp; Datei (ersetzen bestätigen). Ab 2. Mal: zuletzt gewählter Ordner. Ohne API: Download wie bisher.">
-      <span class="save-dot"></span>💾 Datei speichern
+    <button id="btnSave" class="btn btn-save dirty" onclick="saveToFile()" title="Datei mit allen Daten speichern und herunterladen">
+      <span class="save-dot"></span>💾 Speichern
     </button>
-    <button class="btn btn-ghost" onclick="exportAllXLSX()">↓ Gesamt XLSX</button>
-    <button class="btn btn-ghost" onclick="exportAllPDF()">↓ Gesamt PDF</button>
+    <button class="btn btn-ghost" onclick="exportAllXLSX()" style="color:#F2EFE8;border-color:rgba(255,255,255,0.25);">↓ XLSX</button>
+    <button class="btn btn-ghost" onclick="exportAllPDF()" style="color:#F2EFE8;border-color:rgba(255,255,255,0.25);">↓ PDF</button>
     <button class="btn btn-danger" onclick="clearAllData()">✕ Reset</button>
   </div>
 </div>
@@ -132,7 +136,7 @@
 
     <div class="section-card">
       <div class="section-hdr" onclick="toggleSection(this)">
-        <span>Projekt Kontaktliste</span>
+        <span>Mitarbeiterliste</span>
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
@@ -148,11 +152,16 @@
   <div class="page active" id="page-uebersicht">
     <div class="page-hdr">
       <div class="page-title">Übersicht ganze Baustelle</div>
+      <div class="export-bar">
+        <span class="export-lbl">Export:</span>
+        <button class="btn btn-success" onclick="exportUebersichtXLSX()">↓ XLSX</button>
+        <button class="btn btn-dark" onclick="exportUebersichtPDF()">↓ PDF</button>
+      </div>
     </div>
 
     <!-- KW Management -->
     <div class="section-card">
-      <div class="section-hdr" onclick="toggleSection(this)">
+      <div class="section-hdr collapsed" onclick="toggleSection(this)">
         <div style="display:flex;align-items:center;gap:12px">
           <span>Kalenderwochen</span>
         </div>
@@ -161,14 +170,19 @@
           <span class="chevron">▼</span>
         </div>
       </div>
-      <div class="section-body">
-        <div id="kwListContainer"></div>
+      <div class="section-body collapsed">
+                <div id="kwListContainer"></div>
       </div>
     </div>
 
     <!-- Timeline controls -->
     <div class="timeline-bar">
       <div class="tl-left">
+        <div class="zoom-group">
+          <button class="zoom-btn active" data-zoom="shifts" onclick="setZoom('shifts')">Schichten</button>
+          <button class="zoom-btn" data-zoom="days" onclick="setZoom('days')">Tage</button>
+          <button class="zoom-btn" data-zoom="weeks" onclick="setZoom('weeks')">Wochen</button>
+        </div>
         <span class="tl-filter-lbl">Filter:</span>
         <button class="filter-pill active" data-grp="tasks" onclick="toggleTLFilter('tasks',this)">Tätigkeiten</button>
         <button class="filter-pill active" data-grp="personal" onclick="toggleTLFilter('personal',this)">Personal</button>
@@ -188,8 +202,8 @@
     <div class="sdp-outer" id="shiftDetailPanel" style="display: none;">
       <div class="sdp-hdr">
         <div class="sdp-hdr-left">
-          <div class="sdp-title" id="sdp-title">Schicht auswählen</div>
-          <div class="sdp-meta" id="sdp-meta"></div>
+          <div class="sdp-title" id="sdp-title">KW 15 / 2026  —  Mo 6.Apr  —  Tag (07:00 – 19:00)</div>
+          <div class="sdp-meta" id="sdp-meta">10 Einträge total</div>
         </div>
         <button class="sdp-close" onclick="closeSDP()" title="Schliessen">×</button>
       </div>
@@ -201,7 +215,7 @@
             <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
               <div class="sdp-section-left">
                 <span>Tätigkeiten</span>
-                <span class="sdp-count empty" id="sdp-count-tasks">0</span>
+                <span class="sdp-count" id="sdp-count-tasks">3</span>
               </div>
               <span class="chevron">▼</span>
             </div>
@@ -218,7 +232,7 @@
             <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
               <div class="sdp-section-left">
                 <span>Personal</span>
-                <span class="sdp-count empty" id="sdp-count-personal">0</span>
+                <span class="sdp-count" id="sdp-count-personal">3</span>
               </div>
               <span class="chevron">▼</span>
             </div>
@@ -235,7 +249,7 @@
             <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
               <div class="sdp-section-left">
                 <span>Inventar</span>
-                <span class="sdp-count empty" id="sdp-count-inventar">0</span>
+                <span class="sdp-count" id="sdp-count-inventar">3</span>
               </div>
               <span class="chevron">▼</span>
             </div>
@@ -252,7 +266,7 @@
             <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
               <div class="sdp-section-left">
                 <span>Material</span>
-                <span class="sdp-count empty" id="sdp-count-material">0</span>
+                <span class="sdp-count" id="sdp-count-material">1</span>
               </div>
               <span class="chevron">▼</span>
             </div>
@@ -316,7 +330,7 @@
 </div>
 
 <!-- ── Toast ───────────────────────────────────────────────────────────── -->
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast">Schicht eingefügt</div>
 
 <!-- Embedded snapshot — replaced on every "Datei speichern". Do not edit manually. -->
 <script id="savedData" type="application/json">{"savedAt":"","stammdaten":{"projektname":"","projektnummer":"","auftraggeber":"","bauleiter":"","polier":"","standort":"","baubeginn":"","bauende":""},"shiftConfig":{"tag":{"von":"07:00","bis":"19:00"},"nacht":{"von":"19:00","bis":"07:00"}},"kwList":[],"tables":{"mitarbeiter":[]},"workItems":{}}</script>

@@ -59,21 +59,20 @@
 
     /* ── Header ─────────────────────────────────────────────────────── */
     .app-header {
-      background: var(--header-bg);
-      color: var(--header-text);
-      padding: 0 20px;
-      height: 54px;
+      background: #1C1C1E;
+      color: #F2EFE8;
+      padding: 0 24px;
+      height: 60px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 2px solid var(--border);
-      box-shadow: 0 1px 0 rgba(255, 99, 0, 0.35);
+      border-bottom: 3px solid var(--rs-orange);
       position: sticky;
       top: 0;
       z-index: 200;
     }
 
-    .app-logo { display: flex; align-items: center; gap: 10px; }
+    .app-logo { display: flex; align-items: center; gap: 14px; }
 
     .logo-mark {
       width: 32px; height: 32px;
@@ -90,19 +89,23 @@
       font-weight: 700; font-size: 18px;
       letter-spacing: 0.5px; text-transform: uppercase;
       line-height: 1.1;
-      color: var(--rs-orange);
+      color: #FFFFFF;
     }
 
     .app-logo-text .sub {
-      font-size: 10px; color: var(--tab-muted);
+      font-size: 10px; color: rgba(255,255,255,0.45);
       font-weight: 400; letter-spacing: 0.3px;
+    }
+
+    .header-divider {
+      width: 1px; height: 28px; background: rgba(255,255,255,0.15); margin: 0 6px;
     }
 
     .header-actions { display: flex; gap: 6px; align-items: center; }
 
     .header-proj {
-      font-size: 11px; color: var(--text-muted);
-      margin-right: 8px; max-width: 220px;
+      font-size: 11px; color: rgba(255,255,255,0.55);
+      margin-right: 8px; max-width: 260px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       font-style: italic;
     }
@@ -113,7 +116,7 @@
       display: flex; align-items: stretch;
       padding: 0 16px;
       overflow-x: auto; scrollbar-width: none;
-      position: sticky; top: 54px; z-index: 199;
+      position: sticky; top: 60px; z-index: 199;
       border-bottom: 1px solid var(--tab-border);
     }
     .tab-bar::-webkit-scrollbar { display: none; }
@@ -277,10 +280,10 @@
     .btn-ghost   { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
     .btn-ghost:hover { background: var(--bg); opacity: 1; }
     .btn-save {
-      background: #2563EB; color: white; font-weight: 800;
+      background: var(--rs-orange); color: #1C1C1E; font-weight: 800;
       border: 2px solid transparent; position: relative;
     }
-    .btn-save:hover { background: #1D4ED8; opacity: 1; }
+    .btn-save:hover { background: var(--rs-orange-dark); opacity: 1; }
 
     .btn-save .save-dot {
       width: 7px; height: 7px; border-radius: 50%;
