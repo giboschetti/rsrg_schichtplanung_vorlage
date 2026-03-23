@@ -1954,17 +1954,18 @@ function saveToFile() {
     const url  = URL.createObjectURL(blob);
 
     if (location.protocol === 'file:') {
-      const w = window.open(url, '_blank', 'noopener');
-      // #region agent log
-      fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:doDownload',message:'file protocol branch',data:{windowOpenSuccess:!!w,clipboardAvailable:!!navigator.clipboard?.writeText},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-      // #endregion
-      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 500);
       markClean();
-      if (w) {
-        showToast('Neue Registerkarte geöffnet – mit Strg+S speichern');
-      } else {
-        showToast('Daten aktualisiert. Mit Strg+S in diesem Tab speichern.');
-      }
+      showToast('Datei gespeichert – oder Strg+S falls nötig');
       return;
     }
 
