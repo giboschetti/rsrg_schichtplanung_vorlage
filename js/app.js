@@ -1021,7 +1021,41 @@ function addSDPRow(section) {
 
 // ─── Übersicht Exports ────────────────────────────────────────────────────────
 
-function exportUebersichtXLSX() {
+
+function exportUebersichtPDF() {
+  exportShiftplanungPDF('uebersicht');
+}
+
+// ─── XLSX / PDF helpers ───────────────────────────────────────────────────────
+
+function tblToWS(id) {
+  if (!tables[id]) return null;
+  const data = tables[id].getData();
+  if (!data.length) return null;
+  const cols    = tables[id].getColumns();
+  const headers = cols.map(c => c.getDefinition().title);
+  const fields  = cols.map(c => c.getDefinition().field);
+  const rows    = data.map(row => fields.map(f => row[f] ?? ''));
+  return XLSX.utils.aoa_to_sheet([headers, ...rows]);
+}
+
+function exportAllXLSX() {
+  const wb = XLSX.utils.book_new();
+  const sdIds   = ['projektname','projektnummer','auftraggeber','bauleiter','polier','standort','baubeginn','bauende'];
+  const sdLbls  = ['Projektname','Projektnummer','Auftraggeber','Bauleiter','Polier','Standort','Baubeginn','Bauende'];
+  const sdVals  = sdIds.map(f => document.getElementById('sd-' + f)?.value || '');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([sdLbls, sdVals]), 'Stammdaten');
+  const mitWS = tblToWS('mitarbeiter');
+  if (mitWS) XLSX.utils.book_append_sheet(wb, mitWS, 'Mitarbeiter');
+  const uebersichtRows = exportUebersichtXLSXRows();
+  if (uebersichtRows && uebersichtRows.length > 1) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(uebersichtRows), 'Übersicht');
+  }
+  XLSX.writeFile(wb, 'Schichtplanung_Gesamt.xlsx');
+  showToast('Gesamt-XLSX exportiert');
+}
+
+function exportUebersichtXLSXRows() {
   const rows = [['KW', 'Tag', 'Schicht', 'Sektion', 'Bezeichnung', 'Details', 'Status/Bemerkung']];
   Object.entries(workItems).forEach(([key, cell]) => {
     if (!cell || typeof cell !== 'object') return;
@@ -1053,40 +1087,7 @@ function exportUebersichtXLSX() {
       rows.push([kw?.label||kwId, day, sh, 'Fremdleistung', it.firma||'', it.leistung||'', last]);
     });
   });
-  if (rows.length === 1) { showToast('Keine Einträge vorhanden'); return; }
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Übersicht');
-  XLSX.writeFile(wb, 'Uebersicht_Baustelle.xlsx');
-  showToast('XLSX exportiert');
-}
-
-function exportUebersichtPDF() {
-  exportShiftplanungPDF('uebersicht');
-}
-
-// ─── XLSX / PDF helpers ───────────────────────────────────────────────────────
-
-function tblToWS(id) {
-  if (!tables[id]) return null;
-  const data = tables[id].getData();
-  if (!data.length) return null;
-  const cols    = tables[id].getColumns();
-  const headers = cols.map(c => c.getDefinition().title);
-  const fields  = cols.map(c => c.getDefinition().field);
-  const rows    = data.map(row => fields.map(f => row[f] ?? ''));
-  return XLSX.utils.aoa_to_sheet([headers, ...rows]);
-}
-
-function exportAllXLSX() {
-  const wb = XLSX.utils.book_new();
-  const sdIds   = ['projektname','projektnummer','auftraggeber','bauleiter','polier','standort','baubeginn','bauende'];
-  const sdLbls  = ['Projektname','Projektnummer','Auftraggeber','Bauleiter','Polier','Standort','Baubeginn','Bauende'];
-  const sdVals  = sdIds.map(f => document.getElementById('sd-' + f)?.value || '');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([sdLbls, sdVals]), 'Stammdaten');
-  const mitWS = tblToWS('mitarbeiter');
-  if (mitWS) XLSX.utils.book_append_sheet(wb, mitWS, 'Mitarbeiter');
-  XLSX.writeFile(wb, 'Schichtplanung_Gesamt.xlsx');
-  showToast('Gesamt-XLSX exportiert');
+  return rows;
 }
 
 // ─── PDF Design System ────────────────────────────────────────────────────────

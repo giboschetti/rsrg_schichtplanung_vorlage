@@ -38,8 +38,8 @@
     <button id="btnSave" class="btn btn-save dirty" onclick="saveToFile()" title="Datei mit allen Daten speichern und herunterladen">
       <span class="save-dot"></span>💾 Speichern
     </button>
-    <button class="btn btn-ghost" onclick="exportAllXLSX()" style="color:#F2EFE8;border-color:rgba(255,255,255,0.25);">↓ XLSX</button>
-    <button class="btn btn-ghost" onclick="exportAllPDF()" style="color:#F2EFE8;border-color:rgba(255,255,255,0.25);">↓ PDF</button>
+    <button class="btn btn-ghost" onclick="exportAllXLSX()">↓ XLSX</button>
+    <button class="btn btn-ghost" onclick="exportAllPDF()">↓ PDF</button>
     <button class="btn btn-danger" onclick="clearAllData()">✕ Reset</button>
   </div>
 </div>
@@ -152,11 +152,6 @@
   <div class="page active" id="page-uebersicht">
     <div class="page-hdr">
       <div class="page-title">Übersicht ganze Baustelle</div>
-      <div class="export-bar">
-        <span class="export-lbl">Export:</span>
-        <button class="btn btn-success" onclick="exportUebersichtXLSX()">↓ XLSX</button>
-        <button class="btn btn-dark" onclick="exportUebersichtPDF()">↓ PDF</button>
-      </div>
     </div>
 
     <!-- KW Management -->
@@ -179,9 +174,7 @@
     <div class="timeline-bar">
       <div class="tl-left">
         <div class="zoom-group">
-          <button class="zoom-btn active" data-zoom="shifts" onclick="setZoom('shifts')">Schichten</button>
-          <button class="zoom-btn" data-zoom="days" onclick="setZoom('days')">Tage</button>
-          <button class="zoom-btn" data-zoom="weeks" onclick="setZoom('weeks')">Wochen</button>
+          <button class="zoom-btn active" data-zoom="shifts">Schichten</button>
         </div>
         <span class="tl-filter-lbl">Filter:</span>
         <button class="filter-pill active" data-grp="tasks" onclick="toggleTLFilter('tasks',this)">Tätigkeiten</button>

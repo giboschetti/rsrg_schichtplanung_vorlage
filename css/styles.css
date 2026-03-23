@@ -57,10 +57,10 @@
       min-height: 100vh;
     }
 
-    /* ── Header ─────────────────────────────────────────────────────── */
+    /* ── Header (white background for logo blend) ────────────────────── */
     .app-header {
-      background: #1C1C1E;
-      color: #F2EFE8;
+      background: #FFFFFF;
+      color: var(--text);
       padding: 0 24px;
       height: 60px;
       display: flex;
@@ -70,6 +70,7 @@
       position: sticky;
       top: 0;
       z-index: 200;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
 
     .app-logo { display: flex; align-items: center; gap: 14px; }
@@ -89,22 +90,31 @@
       font-weight: 700; font-size: 18px;
       letter-spacing: 0.5px; text-transform: uppercase;
       line-height: 1.1;
-      color: #FFFFFF;
+      color: var(--text);
     }
 
     .app-logo-text .sub {
-      font-size: 10px; color: rgba(255,255,255,0.45);
+      font-size: 10px; color: var(--text-muted);
       font-weight: 400; letter-spacing: 0.3px;
     }
 
     .header-divider {
-      width: 1px; height: 28px; background: rgba(255,255,255,0.15); margin: 0 6px;
+      width: 1px; height: 28px; background: var(--border); margin: 0 6px;
     }
 
     .header-actions { display: flex; gap: 6px; align-items: center; }
 
+    .header-actions .btn-ghost {
+      color: var(--text);
+      border-color: var(--border);
+    }
+    .header-actions .btn-ghost:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+
     .header-proj {
-      font-size: 11px; color: rgba(255,255,255,0.55);
+      font-size: 11px; color: var(--text-muted);
       margin-right: 8px; max-width: 260px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       font-style: italic;
@@ -302,15 +312,6 @@
     }
     .btn-add     { background: #F7F4EE; color: #888; border: 1px dashed #CCC8BE; }
     .btn-add:hover { background: #FFF8EC; border-color: var(--accent); color: var(--accent); opacity: 1; }
-
-    /* ── Export bar ──────────────────────────────────────────────────── */
-    .export-bar { display: flex; gap: 6px; align-items: center; }
-    .export-lbl {
-      font-family: var(--font-e);
-      font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.5px;
-      color: var(--text-muted);
-    }
 
     /* ── Stammdaten form ─────────────────────────────────────────────── */
     .sd-grid {
