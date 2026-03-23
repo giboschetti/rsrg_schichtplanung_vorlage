@@ -45,8 +45,48 @@ let shiftConfig = { tag: { von: '07:00', bis: '19:00' }, nacht: { von: '19:00', 
 
 // ─── Dirty / Clean ───────────────────────────────────────────────────────────
 
-function markDirty() { document.getElementById('btnSave')?.classList.add('dirty'); }
+function markDirty() {
+  document.getElementById('btnSave')?.classList.add('dirty');
+  scheduleSyncSavedDataToDom();
+}
 function markClean()  { document.getElementById('btnSave')?.classList.remove('dirty'); }
+
+let syncSavedDataTimer = null;
+function scheduleSyncSavedDataToDom() {
+  if (!isStandaloneDocument()) return;
+  if (syncSavedDataTimer) clearTimeout(syncSavedDataTimer);
+  syncSavedDataTimer = setTimeout(() => {
+    syncSavedDataTimer = null;
+    syncSavedDataToDom();
+  }, 300);
+}
+
+function syncSavedDataToDom() {
+  if (!isStandaloneDocument()) return;
+  const el = document.getElementById('savedData');
+  if (!el) return;
+  try {
+    const sdIds = ['projektname','projektnummer','auftraggeber','bauleiter','polier','standort','baubeginn','bauende'];
+    const stammdaten = {};
+    sdIds.forEach(id => {
+      const e = document.getElementById('sd-' + id);
+      if (e) stammdaten[id] = e.value;
+    });
+    const snapshot = {
+      savedAt: new Date().toISOString(),
+      stammdaten,
+      shiftConfig,
+      kwList: JSON.parse(JSON.stringify(kwList)),
+      tables: {},
+      workItems: JSON.parse(JSON.stringify(workItems)),
+    };
+    Object.entries(tables).forEach(([id, tbl]) => {
+      try { if (tbl && typeof tbl.getData === 'function') snapshot.tables[id] = tbl.getData(); }
+      catch (_) {}
+    });
+    el.textContent = escScriptText(JSON.stringify(snapshot));
+  } catch (e) { console.warn('syncSavedDataToDom failed:', e); }
+}
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
 
@@ -1864,11 +1904,18 @@ function addPDFFooters(doc) { pdfFooters(doc, true); }
 // ─── Save to File ─────────────────────────────────────────────────────────────
 
 function saveToFile() {
+  // #region agent log
+  fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'saveToFile called',data:{protocol:location.protocol,href:location.href?.substring(0,80)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
   const saveBtn = document.getElementById('btnSave');
   try {
     if (saveBtn) saveBtn.disabled = true;
     showToast('Erstelle Standalone-Datei...');
     flushOpenSDPTables();
+    syncSavedDataToDom();
+    // #region agent log
+    fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'init passed',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
   } catch (e) {
     if (saveBtn) saveBtn.disabled = false;
     console.error('saveToFile init:', e);
@@ -1908,16 +1955,15 @@ function saveToFile() {
 
     if (location.protocol === 'file:') {
       const w = window.open(url, '_blank', 'noopener');
+      // #region agent log
+      fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:doDownload',message:'file protocol branch',data:{windowOpenSuccess:!!w,clipboardAvailable:!!navigator.clipboard?.writeText},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+      // #endregion
       setTimeout(() => URL.revokeObjectURL(url), 15000);
       markClean();
       if (w) {
         showToast('Neue Registerkarte geöffnet – mit Strg+S speichern');
       } else {
-        navigator.clipboard?.writeText(html).then(() => {
-          showToast('In Zwischenablage kopiert – in neue .html-Datei einfügen und speichern');
-        }).catch(() => {
-          showToast('Pop-ups im Browser erlauben für „Speichern“');
-        });
+        showToast('Daten aktualisiert. Mit Strg+S in diesem Tab speichern.');
       }
       return;
     }
@@ -1937,11 +1983,21 @@ function saveToFile() {
     showToast('Standalone-Datei exportiert');
   }
 
-  if (isStandaloneDocument()) {
+  const isStandalone = isStandaloneDocument();
+  // #region agent log
+  fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'isStandaloneDocument',data:{isStandalone,hasAppScript:!!document.querySelector('script[src*="app.js"]'),hasOurCss:!!document.querySelector('link[href*="styles.css"]')},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
+  if (isStandalone) {
     try {
       const html = buildStandaloneHtmlSync(snapshot);
+      // #region agent log
+      fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'buildStandaloneHtmlSync ok',data:{htmlLen:html?.length},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       doDownload(html);
     } catch (err) {
+      // #region agent log
+      fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'buildStandaloneHtmlSync throw',data:{err:String(err?.message||err)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       console.error('Standalone export failed:', err);
       showToast('Export fehlgeschlagen: ' + (err?.message || 'Unbekannter Fehler'));
     }
@@ -2097,6 +2153,9 @@ function loadFromEmbeddedData() {
   const el  = document.getElementById('savedData');
   if (!el) return;
   const raw = el.textContent.trim();
+  // #region agent log
+  fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:loadFromEmbeddedData',message:'#savedData read at load',data:{rawLen:raw?.length},timestamp:Date.now(),hypothesisId:'H6'})}).catch(()=>{});
+  // #endregion
   if (!raw || raw === 'null') return;
   try {
     const snap = JSON.parse(raw);
