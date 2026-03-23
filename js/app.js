@@ -1865,10 +1865,16 @@ function addPDFFooters(doc) { pdfFooters(doc, true); }
 
 function saveToFile() {
   const saveBtn = document.getElementById('btnSave');
-  if (saveBtn) saveBtn.disabled = true;
-  showToast('Erstelle Standalone-Datei...');
-
-  flushOpenSDPTables();
+  try {
+    if (saveBtn) saveBtn.disabled = true;
+    showToast('Erstelle Standalone-Datei...');
+    flushOpenSDPTables();
+  } catch (e) {
+    if (saveBtn) saveBtn.disabled = false;
+    console.error('saveToFile init:', e);
+    alert('Speichern fehlgeschlagen: ' + (e?.message || e));
+    return;
+  }
 
   const sdIds = ['projektname','projektnummer','auftraggeber','bauleiter','polier','standort','baubeginn','bauende'];
   const stammdaten = {};
@@ -1899,7 +1905,24 @@ function saveToFile() {
 
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
+
+    if (location.protocol === 'file:') {
+      const w = window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      markClean();
+      if (w) {
+        showToast('Neue Registerkarte geöffnet – mit Strg+S speichern');
+      } else {
+        navigator.clipboard?.writeText(html).then(() => {
+          showToast('In Zwischenablage kopiert – in neue .html-Datei einfügen und speichern');
+        }).catch(() => {
+          showToast('Pop-ups im Browser erlauben für „Speichern“');
+        });
+      }
+      return;
+    }
+
+    const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     a.style.display = 'none';
