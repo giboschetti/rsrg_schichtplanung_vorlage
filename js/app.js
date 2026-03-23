@@ -1245,8 +1245,7 @@ function buildKWSummaryPage(doc, kw, y, W, proj) {
       ['T', 'N'].forEach(sh => {
         const items = getSection(kw.id, dayIdx, sh, g.section);
         const labels = items.map(it => getItemLabel(it, g.section)).filter(l => l && l !== '–').slice(0, 3);
-        cells.push(labels.join('
-') || '–');
+        cells.push(labels.join('\n') || '–');
       });
     });
     return cells;
