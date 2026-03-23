@@ -1496,6 +1496,10 @@ function addPDFFooters(doc) { pdfFooters(doc, true); }
 // ─── Save to File ─────────────────────────────────────────────────────────────
 
 function saveToFile() {
+  const saveBtn = document.getElementById('btnSave');
+  if (saveBtn) saveBtn.disabled = true;
+  showToast('Erstelle Standalone-Datei...');
+
   const sdIds = ['projektname','projektnummer','auftraggeber','bauleiter','polier','standort','baubeginn','bauende'];
   const stammdaten = {};
   sdIds.forEach(id => {
@@ -1516,28 +1520,122 @@ function saveToFile() {
     snapshot.tables[id] = tbl.getData();
   });
 
-  const dataJson = JSON.stringify(snapshot).replace(/<\/script>/gi, '<\\/script>');
-  let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-  html = html.replace(
-    /<script id="savedData" type="application\/json">[\s\S]*?<\/script>/,
-    '<script id="savedData" type="application/json">' + dataJson + '<\/script>'
-  );
+  buildStandaloneHtml(snapshot).then(html => {
+    const proj = stammdaten.projektname?.trim();
+    const filename = proj
+      ? 'Schichtplanung_' + proj.replace(/[^\w\-äöüÄÖÜ ]/g, '').replace(/\s+/g, '_') + '.html'
+      : 'schichtplanung.html';
 
-  const proj = stammdaten.projektname?.trim();
-  const filename = proj
-    ? 'Schichtplanung_' + proj.replace(/[^\w\-äöüÄÖÜ ]/g, '').replace(/\s+/g, '_') + '.html'
-    : 'schichtplanung.html';
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+    markClean();
+    showToast('Standalone-Datei exportiert');
+  }).catch(err => {
+    console.error('Standalone export failed:', err);
+    showToast('Export fehlgeschlagen – bitte erneut versuchen');
+  }).finally(() => {
+    if (saveBtn) saveBtn.disabled = false;
+  });
+}
 
-  markClean();
-  showToast('Datei heruntergeladen — bitte auf SharePoint hochladen');
+const exportAssetCache = new Map();
+
+function escScriptText(s) {
+  return String(s || '').replace(/<\/script>/gi, '<\\/script>');
+}
+
+function toAbsoluteUrl(url) {
+  try { return new URL(url, location.href).href; }
+  catch (_) { return url; }
+}
+
+async function fetchAssetText(url) {
+  if (exportAssetCache.has(url)) return exportAssetCache.get(url);
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Fetch failed for ' + url + ' (' + res.status + ')');
+  const txt = await res.text();
+  exportAssetCache.set(url, txt);
+  return txt;
+}
+
+function clearRuntimeTabulatorMarkup(root) {
+  root.querySelectorAll('.tabulator').forEach(el => {
+    el.innerHTML = '';
+  });
+}
+
+async function inlineStylesheets(docClone) {
+  const mk = tag => docClone.ownerDocument.createElement(tag);
+  const links = Array.from(docClone.querySelectorAll('link[rel="stylesheet"][href]'));
+  for (const link of links) {
+    const href = link.getAttribute('href');
+    if (!href) continue;
+    const absHref = toAbsoluteUrl(href);
+    try {
+      const css = await fetchAssetText(absHref);
+      const style = mk('style');
+      style.setAttribute('data-inlined-from', href);
+      style.textContent = css;
+      link.replaceWith(style);
+    } catch (e) {
+      console.warn('Could not inline stylesheet:', href, e);
+    }
+  }
+}
+
+async function inlineScripts(docClone) {
+  const mk = tag => docClone.ownerDocument.createElement(tag);
+  const scripts = Array.from(docClone.querySelectorAll('script[src]'));
+  for (const script of scripts) {
+    const src = script.getAttribute('src') || '';
+    if (/^chrome-extension:\/\//i.test(src)) {
+      script.remove();
+      continue;
+    }
+    const absSrc = toAbsoluteUrl(src);
+    try {
+      const js = await fetchAssetText(absSrc);
+      const inlined = mk('script');
+      inlined.setAttribute('data-inlined-from', src);
+      if (script.type) inlined.type = script.type;
+      inlined.textContent = escScriptText(js) + '\n//# sourceURL=' + absSrc;
+      script.replaceWith(inlined);
+    } catch (e) {
+      console.warn('Could not inline script:', src, e);
+    }
+  }
+}
+
+async function buildStandaloneHtml(snapshot) {
+  const docClone = document.documentElement.cloneNode(true);
+
+  docClone.querySelectorAll('script[src^="chrome-extension://"]').forEach(s => s.remove());
+  docClone.querySelectorAll('script[data-name="TokenSigning"]').forEach(s => s.remove());
+
+  clearRuntimeTabulatorMarkup(docClone);
+
+  const savedDataEl = docClone.querySelector('#savedData');
+  const dataJson = escScriptText(JSON.stringify(snapshot));
+  if (savedDataEl) {
+    savedDataEl.textContent = dataJson;
+  } else {
+    const s = docClone.ownerDocument.createElement('script');
+    s.id = 'savedData';
+    s.type = 'application/json';
+    s.textContent = dataJson;
+    docClone.querySelector('body')?.appendChild(s);
+  }
+
+  await inlineStylesheets(docClone);
+  await inlineScripts(docClone);
+
+  return '<!DOCTYPE html>\n' + docClone.outerHTML;
 }
 
 // ─── Load from Embedded Data ──────────────────────────────────────────────────
