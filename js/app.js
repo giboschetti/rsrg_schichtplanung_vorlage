@@ -1868,6 +1868,8 @@ function saveToFile() {
   if (saveBtn) saveBtn.disabled = true;
   showToast('Erstelle Standalone-Datei...');
 
+  flushOpenSDPTables();
+
   const sdIds = ['projektname','projektnummer','auftraggeber','bauleiter','polier','standort','baubeginn','bauende'];
   const stammdaten = {};
   sdIds.forEach(id => {
@@ -1885,10 +1887,11 @@ function saveToFile() {
   };
 
   Object.entries(tables).forEach(([id, tbl]) => {
-    snapshot.tables[id] = tbl.getData();
+    try { if (tbl && typeof tbl.getData === 'function') snapshot.tables[id] = tbl.getData(); }
+    catch (e) { console.warn('Could not get table data for', id, e); }
   });
 
-  buildStandaloneHtml(snapshot).then(html => {
+  function doDownload(html) {
     const proj = stammdaten.projektname?.trim();
     const filename = proj
       ? 'Schichtplanung_' + proj.replace(/[^\w\-äöüÄÖÜ ]/g, '').replace(/\s+/g, '_') + '.html'
@@ -1897,19 +1900,39 @@ function saveToFile() {
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 200);
 
     markClean();
     showToast('Standalone-Datei exportiert');
-  }).catch(err => {
-    console.error('Standalone export failed:', err);
-    showToast('Export fehlgeschlagen – bitte erneut versuchen');
-  }).finally(() => {
+  }
+
+  if (isStandaloneDocument()) {
+    try {
+      const html = buildStandaloneHtmlSync(snapshot);
+      doDownload(html);
+    } catch (err) {
+      console.error('Standalone export failed:', err);
+      showToast('Export fehlgeschlagen: ' + (err?.message || 'Unbekannter Fehler'));
+    }
     if (saveBtn) saveBtn.disabled = false;
-  });
+  } else {
+    buildStandaloneHtml(snapshot).then(html => {
+      doDownload(html);
+    }).catch(err => {
+      console.error('Standalone export failed:', err);
+      showToast('Export fehlgeschlagen – bitte erneut versuchen');
+    }).finally(() => {
+      if (saveBtn) saveBtn.disabled = false;
+    });
+  }
 }
 
 const exportAssetCache = new Map();
@@ -1939,8 +1962,10 @@ function clearRuntimeTabulatorMarkup(root) {
 }
 
 async function inlineStylesheets(docClone) {
-  const mk = tag => docClone.ownerDocument.createElement(tag);
   const links = Array.from(docClone.querySelectorAll('link[rel="stylesheet"][href]'));
+  if (links.length === 0) return;
+  const doc = docClone.ownerDocument || document;
+  const mk = tag => doc.createElement(tag);
   for (const link of links) {
     const href = link.getAttribute('href');
     if (!href) continue;
@@ -1958,8 +1983,10 @@ async function inlineStylesheets(docClone) {
 }
 
 async function inlineScripts(docClone) {
-  const mk = tag => docClone.ownerDocument.createElement(tag);
   const scripts = Array.from(docClone.querySelectorAll('script[src]'));
+  if (scripts.length === 0) return;
+  const doc = docClone.ownerDocument || document;
+  const mk = tag => doc.createElement(tag);
   for (const script of scripts) {
     const src = script.getAttribute('src') || '';
     if (/^chrome-extension:\/\//i.test(src)) {
@@ -1980,6 +2007,38 @@ async function inlineScripts(docClone) {
   }
 }
 
+/** True if document appears to be already standalone (all assets inlined). */
+function isStandaloneDocument() {
+  const hasAppScript = document.querySelector('script[src*="app.js"]');
+  const hasOurCss = document.querySelector('link[href*="styles.css"]');
+  return !hasAppScript && !hasOurCss;
+}
+
+/** Synchronous build for standalone documents – no fetch, runs in click handler. */
+function buildStandaloneHtmlSync(snapshot) {
+  const docClone = document.documentElement.cloneNode(true);
+
+  docClone.querySelectorAll('script[src^="chrome-extension://"]').forEach(s => s.remove());
+  docClone.querySelectorAll('script[data-name="TokenSigning"]').forEach(s => s.remove());
+
+  clearRuntimeTabulatorMarkup(docClone);
+
+  const savedDataEl = docClone.querySelector('#savedData');
+  const dataJson = escScriptText(JSON.stringify(snapshot));
+  if (savedDataEl) {
+    savedDataEl.textContent = dataJson;
+  } else {
+    const doc = docClone.ownerDocument || document;
+    const s = doc.createElement('script');
+    s.id = 'savedData';
+    s.type = 'application/json';
+    s.textContent = dataJson;
+    docClone.querySelector('body')?.appendChild(s);
+  }
+
+  return '<!DOCTYPE html>\n' + docClone.outerHTML;
+}
+
 async function buildStandaloneHtml(snapshot) {
   const docClone = document.documentElement.cloneNode(true);
 
@@ -1993,15 +2052,18 @@ async function buildStandaloneHtml(snapshot) {
   if (savedDataEl) {
     savedDataEl.textContent = dataJson;
   } else {
-    const s = docClone.ownerDocument.createElement('script');
+    const doc = docClone.ownerDocument || document;
+    const s = doc.createElement('script');
     s.id = 'savedData';
     s.type = 'application/json';
     s.textContent = dataJson;
     docClone.querySelector('body')?.appendChild(s);
   }
 
-  await inlineStylesheets(docClone);
-  await inlineScripts(docClone);
+  if (!isStandaloneDocument()) {
+    await inlineStylesheets(docClone);
+    await inlineScripts(docClone);
+  }
 
   return '<!DOCTYPE html>\n' + docClone.outerHTML;
 }
