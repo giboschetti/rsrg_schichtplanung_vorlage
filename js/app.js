@@ -1904,18 +1904,12 @@ function addPDFFooters(doc) { pdfFooters(doc, true); }
 // ─── Save to File ─────────────────────────────────────────────────────────────
 
 function saveToFile() {
-  // #region agent log
-  fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'saveToFile called',data:{protocol:location.protocol,href:location.href?.substring(0,80)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
   const saveBtn = document.getElementById('btnSave');
   try {
     if (saveBtn) saveBtn.disabled = true;
     showToast('Erstelle Standalone-Datei...');
     flushOpenSDPTables();
     syncSavedDataToDom();
-    // #region agent log
-    fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'init passed',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
   } catch (e) {
     if (saveBtn) saveBtn.disabled = false;
     console.error('saveToFile init:', e);
@@ -1984,21 +1978,11 @@ function saveToFile() {
     showToast('Standalone-Datei exportiert');
   }
 
-  const isStandalone = isStandaloneDocument();
-  // #region agent log
-  fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'isStandaloneDocument',data:{isStandalone,hasAppScript:!!document.querySelector('script[src*="app.js"]'),hasOurCss:!!document.querySelector('link[href*="styles.css"]')},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
-  if (isStandalone) {
+  if (isStandaloneDocument()) {
     try {
       const html = buildStandaloneHtmlSync(snapshot);
-      // #region agent log
-      fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'buildStandaloneHtmlSync ok',data:{htmlLen:html?.length},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       doDownload(html);
     } catch (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:saveToFile',message:'buildStandaloneHtmlSync throw',data:{err:String(err?.message||err)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       console.error('Standalone export failed:', err);
       showToast('Export fehlgeschlagen: ' + (err?.message || 'Unbekannter Fehler'));
     }
@@ -2154,9 +2138,6 @@ function loadFromEmbeddedData() {
   const el  = document.getElementById('savedData');
   if (!el) return;
   const raw = el.textContent.trim();
-  // #region agent log
-  fetch('http://127.0.0.1:7513/ingest/be8ca088-8b61-4a03-a319-d3f52cf3402c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1ed2de'},body:JSON.stringify({sessionId:'1ed2de',location:'app.js:loadFromEmbeddedData',message:'#savedData read at load',data:{rawLen:raw?.length},timestamp:Date.now(),hypothesisId:'H6'})}).catch(()=>{});
-  // #endregion
   if (!raw || raw === 'null') return;
   try {
     const snap = JSON.parse(raw);
