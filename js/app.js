@@ -438,6 +438,16 @@ function tlDayPlain(kw, dayIdx) {
   return `${TL_DAYS[dayIdx]} ${d.getDate()}.${TL_MONTH_DE[d.getMonth()]}`;
 }
 
+/** PDF day header: "Mo - 12. Jun - Tag" (or Nacht) */
+function tlPdfDayHeader(kw, dayIdx, shiftId) {
+  const mon = mondayDateForKw(kw);
+  if (!mon || dayIdx < 0 || dayIdx > 6) return TL_DAYS[dayIdx] + (shiftId === 'T' ? ' T' : ' N');
+  const d = addDaysLocal(mon, dayIdx);
+  const dateStr = `${d.getDate()}. ${TL_MONTH_DE[d.getMonth()]}`;
+  const shiftLabel = shiftId === 'T' ? 'Tag' : 'Nacht';
+  return `${TL_DAYS[dayIdx]} - ${dateStr} - ${shiftLabel}`;
+}
+
 /** HTML für Tabellenkopf: Mo + Zeilenumbruch + 15.Jun */
 function tlDayThHtml(kw, dayIdx) {
   const mon = mondayDateForKw(kw);
@@ -500,10 +510,11 @@ function getTlColWidths() {
 /** Build thead for a single-shift table (Tag or Nacht). */
 function buildShiftsHeader(shiftId) {
   const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
+  const shiftLabel = shiftId === 'T' ? 'Tag' : 'Nacht';
   let html = '<thead><tr>';
   html += '<th class="tl-label-th" rowspan="2">Ressource</th>';
   kwList.forEach(kw => {
-    html += `<th class="tl-kw-th ${sh.cls}" colspan="7">${kw.label}</th>`;
+    html += `<th class="tl-kw-th ${sh.cls}" colspan="7">${kw.label} — ${shiftLabel}</th>`;
   });
   html += '</tr><tr>';
   kwList.forEach((kw, ki) => {
@@ -1295,8 +1306,8 @@ function buildKWSummaryPage(doc, kw, y, W, proj) {
     },
   };
 
-  const headRowTag  = ['Ressource', ...TL_DAYS.map(d => d + ' T')];
-  const headRowNacht = ['Ressource', ...TL_DAYS.map(d => d + ' N')];
+  const headRowTag  = ['Ressource', ...TL_DAYS.map((_, dayIdx) => tlPdfDayHeader(kw, dayIdx, 'T'))];
+  const headRowNacht = ['Ressource', ...TL_DAYS.map((_, dayIdx) => tlPdfDayHeader(kw, dayIdx, 'N'))];
 
   const grpRowsTag = TL_GROUPS.map(g => {
     const cells = [g.label];
