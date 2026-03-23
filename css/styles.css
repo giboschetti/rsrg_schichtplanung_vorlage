@@ -421,6 +421,14 @@
     .st-verschoben { color: #6B7280; font-weight: 600; }
     .st-gesperrt { color: var(--rs-red); font-weight: 600; }
 
+    .sdp-del-btn {
+      color: #DC002E; cursor: pointer; font-weight: bold;
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 2px 6px; border-radius: 3px;
+      transition: background 0.15s ease;
+    }
+    .sdp-del-btn:hover { background: rgba(220,0,46,0.12); }
+
     /* Ressourcen-Status (Schicht-Detail, alle Grids) */
     .st-rs-planung,
     .st-rs-bestellt,

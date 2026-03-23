@@ -24,7 +24,7 @@ const tables = {};
 const kwList = []; // [{id, label, num, year, dateFrom, dateTo}]
 
 // workItems[key] = {
-//   tasks:         [{id, name, location, category, status, resStatus, notes}]
+//   tasks:         [{id, name, beschreibung, location, resStatus, notes}]
 //   personal:      [{id, name, funktion, resStatus, bemerkung}]
 //   inventar:      [{id, geraet, anzahl, resStatus, bemerkung}]
 //   material:      [{id, material, menge, einheit, resStatus, bemerkung}]
@@ -270,8 +270,9 @@ function collectBulkAddData(section) {
     row.bemerkung = (document.getElementById('bulk-inventar-bemerkung')?.value || '').trim();
   } else if (section === 'tasks') {
     row.name = (document.getElementById('bulk-tasks-name')?.value || '').trim();
+    row.beschreibung = (document.getElementById('bulk-tasks-beschreibung')?.value || '').trim();
     row.location = (document.getElementById('bulk-tasks-location')?.value || '').trim();
-    row.category = (document.getElementById('bulk-tasks-category')?.value || '').trim();
+    row.resStatus = (document.getElementById('bulk-tasks-status')?.value || '').trim();
     row.notes = (document.getElementById('bulk-tasks-notes')?.value || '').trim();
   } else if (section === 'fremdleistung') {
     row.firma = (document.getElementById('bulk-fremdleistung-firma')?.value || '').trim();
@@ -589,13 +590,22 @@ function loadWorkItemsLS() {
           workItems[key] = { tasks: val.map(it => ({
             id: it.id || Math.random().toString(36).slice(2),
             name: it.name || '',
+            beschreibung: it.beschreibung || '',
             location: it.location || '',
-            category: it.category || '',
-            status: it.status || 'Offen',
+            resStatus: it.resStatus || '',
             notes: it.notes || '',
           })), personal: [], inventar: [], material: [], fremdleistung: [] };
         } else {
           workItems[key] = val;
+        }
+      });
+      // Migrate tasks to new schema (remove category, status; add beschreibung)
+      Object.values(workItems).forEach(cell => {
+        if (cell?.tasks) {
+          cell.tasks = cell.tasks.map(it => {
+            const { category, status, ...rest } = it;
+            return { beschreibung: '', ...rest, resStatus: rest.resStatus ?? '' };
+          });
         }
       });
     }
@@ -952,7 +962,7 @@ function tlBlockClassFromResStatus(it) {
 
 function tlBlockTitle(it, sectionId) {
   if (sectionId === 'tasks')
-    return [it.name, it.resStatus, it.status].filter(Boolean).join(' · ');
+    return [it.name, it.resStatus].filter(Boolean).join(' · ');
   if (sectionId === 'personal') {
     const fn = (it.funktion || '').trim();
     const nm = (it.name || '').trim();
@@ -1117,6 +1127,24 @@ function sdpResStatusColumn(width = 118) {
   };
 }
 
+/** Erste Spalte: rote X-Schaltfläche zum Löschen der Zeile. */
+function sdpDeleteColumn(kwId, dayIdx, shift, section) {
+  return {
+    title: '',
+    field: '_del',
+    width: 38,
+    resizable: false,
+    sortable: false,
+    formatter: () => '<span class="sdp-del-btn" title="Zeile löschen">✕</span>',
+    cellClick: (e, cell) => {
+      if (e.target?.closest?.('.sdp-del-btn')) {
+        cell.getRow().delete();
+        /* rowDeleted callback persists the change */
+      }
+    },
+  };
+}
+
 const SDP_FUNKTION_VALUES = ['Baugruppe','Sicherheit','Maschinist','Polier','Bauleiter','Fremdfirma'];
 
 function closeSDP() {
@@ -1142,19 +1170,10 @@ function initSDPTables(kwId, dayIdx, shift) {
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'tasks'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'tasks'),
     columns: [
-      { title: 'Tätigkeit', field: 'name',     editor: 'input', widthGrow: 2 },
+      sdpDeleteColumn(kwId, dayIdx, shift, 'tasks'),
+      { title: 'Tätigkeit', field: 'name', editor: 'input', widthGrow: 2 },
+      { title: 'Beschreibung', field: 'beschreibung', editor: 'textarea', widthGrow: 2 },
       { title: 'Bereich / Ort', field: 'location', editor: 'input', widthGrow: 1 },
-      { title: 'Kategorie',     field: 'category', editor: 'list', width: 130,
-        editorParams: { values: ['Aushub','Betonierung','Montage','Demontage',
-          'Logistik','Sicherung','Vermessung','Sonstiges'], autocomplete: true } },
-      { title: 'Arbeitsstatus', field: 'status', width: 118,
-        editor: sdpNativeSelectEditor(['Offen','In Arbeit','Erledigt','Verschoben','Gesperrt']),
-        formatter: (cell) => {
-          const v = cell.getValue() || '';
-          const cls = { 'Offen':'st-offen','In Arbeit':'st-arbeit','Erledigt':'st-erledigt',
-            'Verschoben':'st-verschoben','Gesperrt':'st-gesperrt' };
-          return cls[v] ? `<span class="${cls[v]}">${v}</span>` : v;
-        } },
       sdpResStatusColumn(118),
       { title: 'Notizen', field: 'notes', editor: 'input', widthGrow: 1 },
     ],
@@ -1169,6 +1188,7 @@ function initSDPTables(kwId, dayIdx, shift) {
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'personal'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'personal'),
     columns: [
+      sdpDeleteColumn(kwId, dayIdx, shift, 'personal'),
       { title: 'Funktion', field: 'funktion', widthGrow: 1,
         editor: sdpNativeSelectEditor(SDP_FUNKTION_VALUES) },
       { title: 'Name', field: 'name', editor: 'input', widthGrow: 2 },
@@ -1186,6 +1206,7 @@ function initSDPTables(kwId, dayIdx, shift) {
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'inventar'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'inventar'),
     columns: [
+      sdpDeleteColumn(kwId, dayIdx, shift, 'inventar'),
       { title: 'Gerät / Inventar', field: 'geraet',   editor: 'input', widthGrow: 2 },
       { title: 'Anzahl',           field: 'anzahl',   editor: 'number', width: 75, hozAlign: 'right' },
       sdpResStatusColumn(118),
@@ -1202,6 +1223,7 @@ function initSDPTables(kwId, dayIdx, shift) {
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'material'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'material'),
     columns: [
+      sdpDeleteColumn(kwId, dayIdx, shift, 'material'),
       { title: 'Material',  field: 'material', editor: 'input',  widthGrow: 2 },
       { title: 'Menge',     field: 'menge',    editor: 'number', width: 75, hozAlign: 'right' },
       { title: 'Einheit',   field: 'einheit',  editor: 'list',   width: 82,
@@ -1220,6 +1242,7 @@ function initSDPTables(kwId, dayIdx, shift) {
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'fremdleistung'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'fremdleistung'),
     columns: [
+      sdpDeleteColumn(kwId, dayIdx, shift, 'fremdleistung'),
       { title: 'Firma',     field: 'firma',    editor: 'input', widthGrow: 1 },
       { title: 'Leistung',  field: 'leistung', editor: 'input', widthGrow: 2 },
       sdpResStatusColumn(118),
@@ -1314,7 +1337,7 @@ function exportAllXLSX() {
 }
 
 function exportUebersichtXLSXRows() {
-  const rows = [['KW', 'Tag', 'Schicht', 'Sektion', 'Bezeichnung', 'Details', 'Status/Bemerkung']];
+  const rows = [['KW', 'Tag', 'Schicht', 'Sektion', 'Bezeichnung', 'Beschreibung', 'Status/Bemerkung']];
   Object.entries(workItems).forEach(([key, cell]) => {
     if (!cell || typeof cell !== 'object') return;
     const [kwId, dayStr, shift] = key.split('||');
@@ -1323,22 +1346,22 @@ function exportUebersichtXLSXRows() {
     const sh    = shift === 'T' ? `Tag (${shiftConfig.tag.von}–${shiftConfig.tag.bis})` : `Nacht (${shiftConfig.nacht.von}–${shiftConfig.nacht.bis})`;
 
     (cell.tasks || []).forEach(it => {
-      const det = `${it.location||''} ${it.category||''}`.trim();
-      const st = [it.resStatus, it.status].filter(Boolean).join(' / ');
+      const det = (it.beschreibung || '').trim();
+      const st = [it.location, it.resStatus, it.notes].filter(Boolean).join(' — ');
       rows.push([kw?.label||kwId, day, sh, 'Tätigkeiten', it.name||'', det, st]);
     });
     (cell.personal || []).forEach(it => {
       const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
-      rows.push([kw?.label||kwId, day, sh, 'Personal', it.funktion||'', it.name||'', last]);
+      rows.push([kw?.label||kwId, day, sh, 'Personal', it.name||it.funktion||'', it.funktion||'', last]);
     });
     (cell.inventar || []).forEach(it => {
-      const mid = it.anzahl ? 'Anzahl: '+it.anzahl : '';
       const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
-      rows.push([kw?.label||kwId, day, sh, 'Inventar', it.geraet||'', mid, last]);
+      rows.push([kw?.label||kwId, day, sh, 'Inventar', it.geraet||'', it.anzahl!=null ? String(it.anzahl) : '', last]);
     });
     (cell.material || []).forEach(it => {
       const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
-      rows.push([kw?.label||kwId, day, sh, 'Material', it.material||'', `${it.menge||''} ${it.einheit||''}`.trim(), last]);
+      const mengeEinheit = `${it.menge||''} ${it.einheit||''}`.trim();
+      rows.push([kw?.label||kwId, day, sh, 'Material', it.material||'', mengeEinheit, last]);
     });
     (cell.fremdleistung || []).forEach(it => {
       const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
@@ -1618,19 +1641,18 @@ function buildShiftDetailPage(doc, kw, dayIdx, shift, y, W, proj) {
   y = pdfHeader(doc, proj, subtitle, true);
 
   // ── TÄTIGKEITEN ──
-  const tasks = (cell.tasks || []).filter(t => t.name || t.location);
+  const tasks = (cell.tasks || []).filter(t => t.name || t.beschreibung || t.location);
   if (tasks.length) {
     y = pdfSectionHeading(doc, 'Tätigkeiten', y, W);
     const body = tasks.map(t => [
       t.name || '–',
+      t.beschreibung || '–',
       t.location || '–',
-      t.category || '–',
-      t.status || '–',
       t.resStatus || '–',
       t.notes || '–',
     ]);
     y = pdfTable(doc,
-      [['Tätigkeit','Bereich/Ort','Kategorie','Arbeitsstatus','Res.Status','Notizen']],
+      [['Tätigkeit','Beschreibung','Bereich/Ort','Status','Notizen']],
       body, y, W, { fontSize: 7.5 });
   }
 
