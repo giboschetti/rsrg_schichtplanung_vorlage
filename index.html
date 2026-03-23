@@ -184,7 +184,7 @@
         <button class="filter-pill active" data-grp="fremdleistung" onclick="toggleTLFilter('fremdleistung',this)">Fremdleistung</button>
       </div>
       <div class="tl-right">
-        <span style="font-size:10px;color:var(--text-muted);">Schicht wählen → <strong>Strg+C</strong> kopieren, Ziel-Schicht → <strong>Strg+V</strong> einfügen · Klick → Details</span>
+        <span style="font-size:10px;color:var(--text-muted);">Klick Zelle → einzelne Ressource, Klick Spaltenkopf → ganze Schicht · <strong>Strg+C</strong> / <strong>Strg+V</strong></span>
       </div>
     </div>
 
@@ -204,7 +204,7 @@
         <div class="sdp-sections">
 
           <!-- Tätigkeiten -->
-          <div class="sdp-section">
+          <div class="sdp-section" data-grp="tasks">
             <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
               <div class="sdp-section-left">
                 <span>Tätigkeiten</span>
@@ -221,7 +221,7 @@
           </div>
 
           <!-- Personal -->
-          <div class="sdp-section">
+          <div class="sdp-section" data-grp="personal">
             <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
               <div class="sdp-section-left">
                 <span>Personal</span>
@@ -238,7 +238,7 @@
           </div>
 
           <!-- Inventar -->
-          <div class="sdp-section">
+          <div class="sdp-section" data-grp="inventar">
             <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
               <div class="sdp-section-left">
                 <span>Inventar</span>
@@ -255,7 +255,7 @@
           </div>
 
           <!-- Material -->
-          <div class="sdp-section">
+          <div class="sdp-section" data-grp="material">
             <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
               <div class="sdp-section-left">
                 <span>Material</span>
@@ -272,7 +272,7 @@
           </div>
 
           <!-- Fremdleistung -->
-          <div class="sdp-section">
+          <div class="sdp-section" data-grp="fremdleistung">
             <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
               <div class="sdp-section-left">
                 <span>Fremdleistung</span>

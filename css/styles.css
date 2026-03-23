@@ -632,6 +632,7 @@
     .sdp-sections { display: flex; flex-direction: column; gap: 6px; }
 
     .sdp-section { border: 1px solid var(--border); overflow: hidden; }
+    .sdp-section.sdp-section-hidden { display: none !important; }
 
     .sdp-section-hdr {
       padding: 7px 12px;

@@ -292,7 +292,22 @@ function applyShiftPayloadToCell(kwId, dayIdx, shift, payload) {
   renderKWList();
   if (selectedCell && selectedCell.kwId === kwId && selectedCell.dayIdx === dayIdx && selectedCell.shift === shift) {
     initSDPTables(kwId, dayIdx, shift);
-    collapseAllSDPSections();
+    selectedCell.grp ? showOnlySDPSection(selectedCell.grp) : showAllSDPSections();
+  }
+}
+
+function applySectionToShift(kwId, dayIdx, shift, section, data) {
+  const key = wiKey(kwId, dayIdx, shift);
+  if (!workItems[key]) workItems[key] = {};
+  const regenerated = regenerateShiftPayloadIds({ [section]: data });
+  workItems[key][section] = regenerated[section];
+  saveWorkItemsLS();
+  markDirty();
+  updateStats();
+  renderTimeline();
+  renderKWList();
+  if (selectedCell && selectedCell.kwId === kwId && selectedCell.dayIdx === dayIdx && selectedCell.shift === shift) {
+    if (sdpTables[section]) sdpTables[section].setData(getSection(kwId, dayIdx, shift, section));
   }
 }
 
@@ -301,17 +316,22 @@ function copyTimelineShiftToClipboard() {
     showToast('Zuerst eine Schicht-Zelle anklicken (Ansicht „Schichten“)');
     return;
   }
-  const { kwId, dayIdx, shift } = timelineShiftFocus;
-  const sections = getShiftPayloadFromStore(kwId, dayIdx, shift);
+  const { kwId, dayIdx, shift, grp } = timelineShiftFocus;
+  let sections;
+  if (grp) {
+    sections = { [grp]: JSON.parse(JSON.stringify(getSection(kwId, dayIdx, shift, grp))) };
+  } else {
+    sections = getShiftPayloadFromStore(kwId, dayIdx, shift);
+  }
   const wrap = { _schichtplanungShiftV1: true, sections };
   shiftClipboardInternal = wrap;
   const json = JSON.stringify(wrap);
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(json).then(() => {
-      showToast('Schicht kopiert (Strg+V auf Ziel-Schicht)');
-    }).catch(() => showToast('Schicht kopiert'));
+      showToast(grp ? 'Ressource kopiert (Strg+V auf Ziel-Zelle)' : 'Schicht kopiert (Strg+V auf Ziel-Schicht)');
+    }).catch(() => showToast('Kopiert'));
   } else {
-    showToast('Schicht kopiert');
+    showToast('Kopiert');
   }
 }
 
@@ -322,12 +342,20 @@ function pasteTimelineShiftFromClipboard() {
   }
   const { kwId, dayIdx, shift } = timelineShiftFocus;
   const apply = (sections) => {
-    if (!sections) {
+    if (!sections || typeof sections !== 'object') {
       showToast('Keine Schicht-Daten in der Zwischenablage');
       return;
     }
-    applyShiftPayloadToCell(kwId, dayIdx, shift, sections);
-    showToast('Schicht eingefügt');
+    const sectionKeys = Object.keys(sections).filter(k => SHIFT_CLIP_SECTIONS.includes(k));
+    if (sectionKeys.length === 1) {
+      applySectionToShift(kwId, dayIdx, shift, sectionKeys[0], sections[sectionKeys[0]]);
+      showToast('Ressource eingefügt');
+    } else {
+      const fullPayload = {};
+      SHIFT_CLIP_SECTIONS.forEach(s => { fullPayload[s] = sections[s] || []; });
+      applyShiftPayloadToCell(kwId, dayIdx, shift, fullPayload);
+      showToast('Schicht eingefügt');
+    }
   };
   if (navigator.clipboard?.readText) {
     navigator.clipboard.readText().then(text => {
@@ -481,6 +509,27 @@ function collapseAllSDPSections() {
   });
 }
 
+function showOnlySDPSection(grp) {
+  document.querySelectorAll('#shiftDetailPanel .sdp-section').forEach(sec => {
+    if (sec.dataset.grp === grp) {
+      sec.classList.remove('sdp-section-hidden');
+      const hdr = sec.querySelector('.sdp-section-hdr');
+      const body = sec.querySelector('.sdp-section-body');
+      if (hdr) hdr.classList.remove('collapsed');
+      if (body) body.classList.remove('collapsed');
+    } else {
+      sec.classList.add('sdp-section-hidden');
+    }
+  });
+}
+
+function showAllSDPSections() {
+  document.querySelectorAll('#shiftDetailPanel .sdp-section').forEach(sec => {
+    sec.classList.remove('sdp-section-hidden');
+  });
+  collapseAllSDPSections();
+}
+
 function updateStats() {
   /* Statistik-Karten entfernt — Platzhalter für bestehende Aufrufe */
 }
@@ -632,10 +681,17 @@ function renderTimeline() {
     });
   });
 
-  // Cell click → open SDP (only in shifts zoom)
+  // Day header click → open SDP for whole shift (only in shifts zoom)
+  wrapper.querySelectorAll('.tl-slot-th.tl-day-th[data-shift]').forEach(th => {
+    th.addEventListener('click', () => {
+      openSDP(th.dataset.kw, parseInt(th.dataset.day), th.dataset.shift, null);
+    });
+  });
+
+  // Cell click → open SDP for single resource (only in shifts zoom)
   wrapper.querySelectorAll('.tl-cell[data-shift]').forEach(td => {
     td.addEventListener('click', () => {
-      openSDP(td.dataset.kw, parseInt(td.dataset.day), td.dataset.shift);
+      openSDP(td.dataset.kw, parseInt(td.dataset.day), td.dataset.shift, td.dataset.grp || null);
     });
   });
   wrapper.querySelectorAll('.tl-cell:not([data-shift])').forEach(td => {
@@ -647,9 +703,15 @@ function renderTimeline() {
 
   // Re-apply selected highlight
   if (selectedCell && zoom === 'shifts') {
-    wrapper.querySelectorAll(
-      `.tl-cell[data-kw="${selectedCell.kwId}"][data-day="${selectedCell.dayIdx}"][data-shift="${selectedCell.shift}"]`
-    ).forEach(td => td.classList.add('selected'));
+    if (selectedCell.grp) {
+      wrapper.querySelectorAll(
+        `.tl-cell[data-kw="${selectedCell.kwId}"][data-day="${selectedCell.dayIdx}"][data-shift="${selectedCell.shift}"][data-grp="${selectedCell.grp}"]`
+      ).forEach(td => td.classList.add('selected'));
+    } else {
+      wrapper.querySelectorAll(
+        `.tl-cell[data-kw="${selectedCell.kwId}"][data-day="${selectedCell.dayIdx}"][data-shift="${selectedCell.shift}"]`
+      ).forEach(td => td.classList.add('selected'));
+    }
   }
 }
 
@@ -771,23 +833,30 @@ function shiftLabel(shift) {
     : `Nacht (${shiftConfig.nacht.von} – ${shiftConfig.nacht.bis})`;
 }
 
-function openSDP(kwId, dayIdx, shift) {
+function openSDP(kwId, dayIdx, shift, grp) {
   flushOpenSDPTables();
 
-  selectedCell = { kwId, dayIdx, shift };
-  timelineShiftFocus = { kwId, dayIdx, shift };
+  selectedCell = { kwId, dayIdx, shift, grp: grp || undefined };
+  timelineShiftFocus = { kwId, dayIdx, shift, grp: grp || undefined };
 
   document.querySelectorAll('.tl-cell.selected').forEach(td => td.classList.remove('selected'));
-  document.querySelectorAll(
-    `.tl-cell[data-kw="${kwId}"][data-day="${dayIdx}"][data-shift="${shift}"]`
-  ).forEach(td => td.classList.add('selected'));
+  if (grp) {
+    document.querySelectorAll(
+      `.tl-cell[data-kw="${kwId}"][data-day="${dayIdx}"][data-shift="${shift}"][data-grp="${grp}"]`
+    ).forEach(td => td.classList.add('selected'));
+  } else {
+    document.querySelectorAll(
+      `.tl-cell[data-kw="${kwId}"][data-day="${dayIdx}"][data-shift="${shift}"]`
+    ).forEach(td => td.classList.add('selected'));
+  }
 
   const kw = kwList.find(k => k.id === kwId);
   document.getElementById('sdp-title').textContent =
     `${kw?.label || kwId}  —  ${tlDayPlain(kw, dayIdx)}  —  ${shiftLabel(shift)}`;
 
   initSDPTables(kwId, dayIdx, shift);
-  collapseAllSDPSections();
+  if (grp) showOnlySDPSection(grp);
+  else showAllSDPSections();
 
   const panel = document.getElementById('shiftDetailPanel');
   panel.style.display = 'block';
