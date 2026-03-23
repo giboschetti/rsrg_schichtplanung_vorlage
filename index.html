@@ -184,6 +184,7 @@
         <button class="filter-pill active" data-grp="fremdleistung" onclick="toggleTLFilter('fremdleistung',this)">Fremdleistung</button>
       </div>
       <div class="tl-right">
+        <button class="btn btn-accent" style="height:26px;padding:0 12px;font-size:11px;margin-right:10px" onclick="openBulkAddModal()">+ Mehrfach Ressourcen</button>
         <span style="font-size:10px;color:var(--text-muted);">Klick Zelle → einzelne Ressource, Klick Spaltenkopf → ganze Schicht · <strong>Strg+C</strong> / <strong>Strg+V</strong></span>
       </div>
     </div>
@@ -294,6 +295,70 @@
   </div>
 
 </div><!-- end pagesContainer -->
+
+<!-- ── Bulk Add Resources Modal ───────────────────────────────────────── -->
+<div class="modal-overlay" id="bulkAddModal">
+  <div class="modal modal-bulk-add">
+    <h3>Mehrfach Ressourcen hinzufügen</h3>
+    <div class="form-group">
+      <label>Ressourcen-Typ</label>
+      <select id="bulkAddType" onchange="bulkAddTypeChanged()">
+        <option value="personal">Personal</option>
+        <option value="material">Material</option>
+        <option value="inventar">Inventar</option>
+        <option value="tasks">Tätigkeiten</option>
+        <option value="fremdleistung">Fremdleistung</option>
+      </select>
+    </div>
+    <div id="bulkAddFields" class="bulk-add-fields">
+      <div class="bulk-add-type-panel" data-type="personal">
+        <div class="form-group"><label>Name</label><input type="text" id="bulk-personal-name" placeholder="z.B. Max Mustermann"></div>
+        <div class="form-group"><label>Funktion</label><select id="bulk-personal-funktion"><option value="">—</option><option value="Baugruppe">Baugruppe</option><option value="Sicherheit">Sicherheit</option><option value="Maschinist">Maschinist</option><option value="Polier">Polier</option><option value="Bauleiter">Bauleiter</option><option value="Fremdfirma">Fremdfirma</option></select></div>
+        <div class="form-group"><label>Bemerkung</label><input type="text" id="bulk-personal-bemerkung"></div>
+      </div>
+      <div class="bulk-add-type-panel" data-type="material" style="display:none">
+        <div class="form-group"><label>Material</label><input type="text" id="bulk-material-material" placeholder="z.B. Beton"></div>
+        <div class="form-group"><label>Menge</label><input type="number" id="bulk-material-menge" placeholder="0" step="any"></div>
+        <div class="form-group"><label>Einheit</label><select id="bulk-material-einheit"><option value="">—</option><option value="m">m</option><option value="m²">m²</option><option value="m³">m³</option><option value="kg">kg</option><option value="t">t</option><option value="Stk">Stk</option><option value="Psch">Psch</option><option value="h">h</option><option value="l">l</option><option value="lfm">lfm</option></select></div>
+        <div class="form-group"><label>Bemerkung</label><input type="text" id="bulk-material-bemerkung"></div>
+      </div>
+      <div class="bulk-add-type-panel" data-type="inventar" style="display:none">
+        <div class="form-group"><label>Gerät / Inventar</label><input type="text" id="bulk-inventar-geraet" placeholder="z.B. Bagger"></div>
+        <div class="form-group"><label>Anzahl</label><input type="number" id="bulk-inventar-anzahl" placeholder="0" min="0"></div>
+        <div class="form-group"><label>Bemerkung</label><input type="text" id="bulk-inventar-bemerkung"></div>
+      </div>
+      <div class="bulk-add-type-panel" data-type="tasks" style="display:none">
+        <div class="form-group"><label>Tätigkeit</label><input type="text" id="bulk-tasks-name" placeholder="z.B. Aushub"></div>
+        <div class="form-group"><label>Bereich / Ort</label><input type="text" id="bulk-tasks-location"></div>
+        <div class="form-group"><label>Kategorie</label><select id="bulk-tasks-category"><option value="">—</option><option value="Aushub">Aushub</option><option value="Betonierung">Betonierung</option><option value="Montage">Montage</option><option value="Demontage">Demontage</option><option value="Logistik">Logistik</option><option value="Sicherung">Sicherung</option><option value="Vermessung">Vermessung</option><option value="Sonstiges">Sonstiges</option></select></div>
+        <div class="form-group"><label>Notizen</label><input type="text" id="bulk-tasks-notes"></div>
+      </div>
+      <div class="bulk-add-type-panel" data-type="fremdleistung" style="display:none">
+        <div class="form-group"><label>Firma</label><input type="text" id="bulk-fremdleistung-firma" placeholder="z.B. Firma XY"></div>
+        <div class="form-group"><label>Leistung</label><input type="text" id="bulk-fremdleistung-leistung" placeholder="z.B. Kranarbeiten"></div>
+        <div class="form-group"><label>Bemerkung</label><input type="text" id="bulk-fremdleistung-bemerkung"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Zeitraum</label>
+      <div class="bulk-add-date-range">
+        <input type="date" id="bulkAddFrom"> – <input type="date" id="bulkAddTo">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Schichten</label>
+      <div class="bulk-add-shifts">
+        <label class="bulk-add-check"><input type="checkbox" id="bulkAddShiftTag" checked> Tag</label>
+        <label class="bulk-add-check"><input type="checkbox" id="bulkAddShiftNacht" checked> Nacht</label>
+      </div>
+    </div>
+    <div class="bulk-add-preview" id="bulkAddPreview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeBulkAddModal()">Abbrechen</button>
+      <button class="btn btn-accent" onclick="confirmBulkAdd()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Add KW Modal ────────────────────────────────────────────────────── -->
 <div class="modal-overlay" id="addKWModal">

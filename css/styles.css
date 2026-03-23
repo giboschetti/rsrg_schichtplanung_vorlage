@@ -392,6 +392,16 @@
     .modal .form-group { margin-bottom: 12px; }
     .modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
 
+    .modal-bulk-add { min-width: 420px; }
+    .bulk-add-fields { margin: 8px 0; }
+    .bulk-add-type-panel .form-group { margin-bottom: 10px; }
+    .bulk-add-date-range { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .bulk-add-date-range input { flex: 1; min-width: 140px; }
+    .bulk-add-shifts { display: flex; gap: 16px; }
+    .bulk-add-check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 500; }
+    .bulk-add-preview { font-size: 12px; color: var(--text-muted); margin-top: 8px; min-height: 18px; }
+    .bulk-add-preview.active { color: var(--accent); font-weight: 500; }
+
     /* ── Toast ───────────────────────────────────────────────────────── */
     .toast {
       position: fixed; bottom: 20px; right: 20px;

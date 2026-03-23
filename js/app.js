@@ -154,6 +154,188 @@ function closeModal() {
   document.getElementById('addKWModal').classList.remove('open');
 }
 
+// ─── Bulk Add Resources ────────────────────────────────────────────────────
+
+function toYMD(d) {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+/** Returns [{kwId, dayIdx, shift}, ...] for all cells in date range and selected shifts. */
+function getTargetCellsFromDateRange(dateFromStr, dateToStr, shifts) {
+  const targets = [];
+  const from = parseLocalYMD(dateFromStr);
+  const to = parseLocalYMD(dateToStr);
+  if (!from || !to || from > to) return targets;
+  const shiftsArr = shifts || ['T', 'N'];
+  for (const kw of kwList) {
+    const mon = mondayDateForKw(kw);
+    if (!mon) continue;
+    for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+      const d = addDaysLocal(mon, dayIdx);
+      const ymd = toYMD(d);
+      if (ymd >= dateFromStr && ymd <= dateToStr) {
+        for (const shift of shiftsArr) {
+          if (shift === 'T' || shift === 'N') targets.push({ kwId: kw.id, dayIdx, shift });
+        }
+      }
+    }
+  }
+  return targets;
+}
+
+function openBulkAddModal() {
+  if (!kwList.length) {
+    showToast('Zuerst Kalenderwochen hinzufügen');
+    return;
+  }
+  const firstKw = kwList[0];
+  const lastKw = kwList[kwList.length - 1];
+  const fromMon = mondayDateForKw(firstKw);
+  const toSun = fromMon ? addDaysLocal(fromMon, 6) : null;
+  const toMon = lastKw ? mondayDateForKw(lastKw) : null;
+  const toSunLast = toMon ? addDaysLocal(toMon, 6) : null;
+  const elFrom = document.getElementById('bulkAddFrom');
+  const elTo = document.getElementById('bulkAddTo');
+  if (elFrom && fromMon) elFrom.value = toYMD(fromMon);
+  if (elTo && toSunLast) elTo.value = toYMD(toSunLast);
+  else if (elTo && toSun) elTo.value = toYMD(toSun);
+  document.getElementById('bulkAddShiftTag').checked = true;
+  document.getElementById('bulkAddShiftNacht').checked = true;
+  bulkAddTypeChanged();
+  updateBulkAddPreview();
+  ['bulkAddFrom', 'bulkAddTo', 'bulkAddShiftTag', 'bulkAddShiftNacht'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateBulkAddPreview);
+  });
+  document.getElementById('bulkAddModal').classList.add('open');
+  setTimeout(() => document.getElementById('bulkAddType')?.focus(), 80);
+}
+
+function closeBulkAddModal() {
+  document.getElementById('bulkAddModal').classList.remove('open');
+  ['bulkAddFrom', 'bulkAddTo', 'bulkAddShiftTag', 'bulkAddShiftNacht'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.removeEventListener('change', updateBulkAddPreview);
+  });
+}
+
+function bulkAddTypeChanged() {
+  const type = document.getElementById('bulkAddType')?.value || 'personal';
+  document.querySelectorAll('.bulk-add-type-panel').forEach(panel => {
+    panel.style.display = panel.dataset.type === type ? '' : 'none';
+  });
+  updateBulkAddPreview();
+}
+
+function updateBulkAddPreview() {
+  const from = document.getElementById('bulkAddFrom')?.value || '';
+  const to = document.getElementById('bulkAddTo')?.value || '';
+  const tag = document.getElementById('bulkAddShiftTag')?.checked;
+  const nacht = document.getElementById('bulkAddShiftNacht')?.checked;
+  const shifts = [];
+  if (tag) shifts.push('T');
+  if (nacht) shifts.push('N');
+  const targets = getTargetCellsFromDateRange(from, to, shifts);
+  const el = document.getElementById('bulkAddPreview');
+  if (!el) return;
+  if (targets.length === 0) {
+    el.textContent = from && to ? 'Keine Schichten im Zeitraum oder keine KW vorhanden.' : '';
+    el.className = 'bulk-add-preview';
+  } else {
+    el.textContent = 'Wird in ' + targets.length + ' Schichten eingetragen.';
+    el.className = 'bulk-add-preview active';
+  }
+}
+
+function collectBulkAddData(section) {
+  const row = { id: Math.random().toString(36).slice(2) };
+  if (section === 'personal') {
+    row.name = (document.getElementById('bulk-personal-name')?.value || '').trim();
+    row.funktion = (document.getElementById('bulk-personal-funktion')?.value || '').trim();
+    row.bemerkung = (document.getElementById('bulk-personal-bemerkung')?.value || '').trim();
+  } else if (section === 'material') {
+    row.material = (document.getElementById('bulk-material-material')?.value || '').trim();
+    const menge = document.getElementById('bulk-material-menge')?.value;
+    row.menge = menge !== '' && menge != null ? parseFloat(menge) : null;
+    row.einheit = (document.getElementById('bulk-material-einheit')?.value || '').trim();
+    row.bemerkung = (document.getElementById('bulk-material-bemerkung')?.value || '').trim();
+  } else if (section === 'inventar') {
+    row.geraet = (document.getElementById('bulk-inventar-geraet')?.value || '').trim();
+    const anzahl = document.getElementById('bulk-inventar-anzahl')?.value;
+    row.anzahl = anzahl !== '' && anzahl != null ? parseInt(anzahl, 10) : null;
+    row.bemerkung = (document.getElementById('bulk-inventar-bemerkung')?.value || '').trim();
+  } else if (section === 'tasks') {
+    row.name = (document.getElementById('bulk-tasks-name')?.value || '').trim();
+    row.location = (document.getElementById('bulk-tasks-location')?.value || '').trim();
+    row.category = (document.getElementById('bulk-tasks-category')?.value || '').trim();
+    row.notes = (document.getElementById('bulk-tasks-notes')?.value || '').trim();
+  } else if (section === 'fremdleistung') {
+    row.firma = (document.getElementById('bulk-fremdleistung-firma')?.value || '').trim();
+    row.leistung = (document.getElementById('bulk-fremdleistung-leistung')?.value || '').trim();
+    row.bemerkung = (document.getElementById('bulk-fremdleistung-bemerkung')?.value || '').trim();
+  }
+  return row;
+}
+
+function hasBulkAddRequiredField(section, row) {
+  if (section === 'personal') return !!row.name;
+  if (section === 'material') return !!row.material;
+  if (section === 'inventar') return !!row.geraet;
+  if (section === 'tasks') return !!row.name;
+  if (section === 'fremdleistung') return !!row.firma;
+  return false;
+}
+
+function confirmBulkAdd() {
+  const section = document.getElementById('bulkAddType')?.value;
+  if (!section) return;
+  const from = document.getElementById('bulkAddFrom')?.value;
+  const to = document.getElementById('bulkAddTo')?.value;
+  if (!from || !to) {
+    showToast('Zeitraum (Von/Bis) angeben');
+    return;
+  }
+  const tag = document.getElementById('bulkAddShiftTag')?.checked;
+  const nacht = document.getElementById('bulkAddShiftNacht')?.checked;
+  const shifts = [];
+  if (tag) shifts.push('T');
+  if (nacht) shifts.push('N');
+  if (!shifts.length) {
+    showToast('Mindestens eine Schicht (Tag oder Nacht) auswählen');
+    return;
+  }
+  const row = collectBulkAddData(section);
+  if (!hasBulkAddRequiredField(section, row)) {
+    const labels = { personal: 'Name', material: 'Material', inventar: 'Gerät/Inventar', tasks: 'Tätigkeit', fremdleistung: 'Firma' };
+    showToast('Pflichtfeld angeben: ' + (labels[section] || section));
+    return;
+  }
+  const targets = getTargetCellsFromDateRange(from, to, shifts);
+  if (!targets.length) {
+    showToast('Keine Schichten im gewählten Zeitraum');
+    return;
+  }
+  flushOpenSDPTables();
+  for (const { kwId, dayIdx, shift } of targets) {
+    const key = wiKey(kwId, dayIdx, shift);
+    if (!workItems[key]) workItems[key] = {};
+    const existing = workItems[key][section] || [];
+    const newRow = { ...row, id: Math.random().toString(36).slice(2) };
+    workItems[key][section] = [...existing, newRow];
+  }
+  saveWorkItemsLS();
+  markDirty();
+  updateStats();
+  renderTimeline();
+  renderKWList();
+  closeBulkAddModal();
+  showToast('Ressource in ' + targets.length + ' Schichten hinzugefügt');
+}
+
 function confirmAddKW() {
   const num  = parseInt(document.getElementById('kwNum').value);
   const year = parseInt(document.getElementById('kwYear').value);
