@@ -164,17 +164,20 @@ function toYMD(d) {
   return y + '-' + m + '-' + day;
 }
 
-/** Returns [{kwId, dayIdx, shift}, ...] for all cells in date range and selected shifts. */
-function getTargetCellsFromDateRange(dateFromStr, dateToStr, shifts) {
+/** Returns [{kwId, dayIdx, shift}, ...] for all cells in date range, selected shifts, and allowed days.
+ * allowedDays: array of dayIdx 0-6 (0=Mo .. 5=Sa, 6=So). If null/undefined, all days included. */
+function getTargetCellsFromDateRange(dateFromStr, dateToStr, shifts, allowedDays) {
   const targets = [];
   const from = parseLocalYMD(dateFromStr);
   const to = parseLocalYMD(dateToStr);
   if (!from || !to || from > to) return targets;
   const shiftsArr = shifts || ['T', 'N'];
+  const dayFilter = Array.isArray(allowedDays) ? new Set(allowedDays) : null;
   for (const kw of kwList) {
     const mon = mondayDateForKw(kw);
     if (!mon) continue;
     for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+      if (dayFilter && !dayFilter.has(dayIdx)) continue;
       const d = addDaysLocal(mon, dayIdx);
       const ymd = toYMD(d);
       if (ymd >= dateFromStr && ymd <= dateToStr) {
@@ -205,9 +208,11 @@ function openBulkAddModal() {
   else if (elTo && toSun) elTo.value = toYMD(toSun);
   document.getElementById('bulkAddShiftTag').checked = true;
   document.getElementById('bulkAddShiftNacht').checked = true;
+  document.getElementById('bulkAddDaySa').checked = true;
+  document.getElementById('bulkAddDaySo').checked = true;
   bulkAddTypeChanged();
   updateBulkAddPreview();
-  ['bulkAddFrom', 'bulkAddTo', 'bulkAddShiftTag', 'bulkAddShiftNacht'].forEach(id => {
+  ['bulkAddFrom', 'bulkAddTo', 'bulkAddShiftTag', 'bulkAddShiftNacht', 'bulkAddDaySa', 'bulkAddDaySo'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', updateBulkAddPreview);
   });
@@ -217,7 +222,7 @@ function openBulkAddModal() {
 
 function closeBulkAddModal() {
   document.getElementById('bulkAddModal').classList.remove('open');
-  ['bulkAddFrom', 'bulkAddTo', 'bulkAddShiftTag', 'bulkAddShiftNacht'].forEach(id => {
+  ['bulkAddFrom', 'bulkAddTo', 'bulkAddShiftTag', 'bulkAddShiftNacht', 'bulkAddDaySa', 'bulkAddDaySo'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.removeEventListener('change', updateBulkAddPreview);
   });
@@ -231,6 +236,15 @@ function bulkAddTypeChanged() {
   updateBulkAddPreview();
 }
 
+function getBulkAddAllowedDays() {
+  const sa = document.getElementById('bulkAddDaySa')?.checked;
+  const so = document.getElementById('bulkAddDaySo')?.checked;
+  const days = [0, 1, 2, 3, 4]; // Mo–Fr always
+  if (sa) days.push(5);
+  if (so) days.push(6);
+  return days;
+}
+
 function updateBulkAddPreview() {
   const from = document.getElementById('bulkAddFrom')?.value || '';
   const to = document.getElementById('bulkAddTo')?.value || '';
@@ -239,7 +253,8 @@ function updateBulkAddPreview() {
   const shifts = [];
   if (tag) shifts.push('T');
   if (nacht) shifts.push('N');
-  const targets = getTargetCellsFromDateRange(from, to, shifts);
+  const allowedDays = getBulkAddAllowedDays();
+  const targets = getTargetCellsFromDateRange(from, to, shifts, allowedDays);
   const el = document.getElementById('bulkAddPreview');
   if (!el) return;
   if (targets.length === 0) {
@@ -256,17 +271,20 @@ function collectBulkAddData(section) {
   if (section === 'personal') {
     row.name = (document.getElementById('bulk-personal-name')?.value || '').trim();
     row.funktion = (document.getElementById('bulk-personal-funktion')?.value || '').trim();
+    row.resStatus = (document.getElementById('bulk-personal-status')?.value || '').trim();
     row.bemerkung = (document.getElementById('bulk-personal-bemerkung')?.value || '').trim();
   } else if (section === 'material') {
     row.material = (document.getElementById('bulk-material-material')?.value || '').trim();
     const menge = document.getElementById('bulk-material-menge')?.value;
     row.menge = menge !== '' && menge != null ? parseFloat(menge) : null;
     row.einheit = (document.getElementById('bulk-material-einheit')?.value || '').trim();
+    row.resStatus = (document.getElementById('bulk-material-status')?.value || '').trim();
     row.bemerkung = (document.getElementById('bulk-material-bemerkung')?.value || '').trim();
   } else if (section === 'inventar') {
     row.geraet = (document.getElementById('bulk-inventar-geraet')?.value || '').trim();
     const anzahl = document.getElementById('bulk-inventar-anzahl')?.value;
     row.anzahl = anzahl !== '' && anzahl != null ? parseInt(anzahl, 10) : null;
+    row.resStatus = (document.getElementById('bulk-inventar-status')?.value || '').trim();
     row.bemerkung = (document.getElementById('bulk-inventar-bemerkung')?.value || '').trim();
   } else if (section === 'tasks') {
     row.name = (document.getElementById('bulk-tasks-name')?.value || '').trim();
@@ -277,6 +295,7 @@ function collectBulkAddData(section) {
   } else if (section === 'fremdleistung') {
     row.firma = (document.getElementById('bulk-fremdleistung-firma')?.value || '').trim();
     row.leistung = (document.getElementById('bulk-fremdleistung-leistung')?.value || '').trim();
+    row.resStatus = (document.getElementById('bulk-fremdleistung-status')?.value || '').trim();
     row.bemerkung = (document.getElementById('bulk-fremdleistung-bemerkung')?.value || '').trim();
   }
   return row;
@@ -309,13 +328,14 @@ function confirmBulkAdd() {
     showToast('Mindestens eine Schicht (Tag oder Nacht) auswählen');
     return;
   }
+  const allowedDays = getBulkAddAllowedDays();
   const row = collectBulkAddData(section);
   if (!hasBulkAddRequiredField(section, row)) {
     const labels = { personal: 'Name', material: 'Material', inventar: 'Gerät/Inventar', tasks: 'Tätigkeit', fremdleistung: 'Firma' };
     showToast('Pflichtfeld angeben: ' + (labels[section] || section));
     return;
   }
-  const targets = getTargetCellsFromDateRange(from, to, shifts);
+  const targets = getTargetCellsFromDateRange(from, to, shifts, allowedDays);
   if (!targets.length) {
     showToast('Keine Schichten im gewählten Zeitraum');
     return;
