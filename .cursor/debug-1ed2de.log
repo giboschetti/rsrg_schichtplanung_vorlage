@@ -2,3 +2,4 @@
 {"sessionId":"1ed2de","location":"app.js:loadFromEmbeddedData","message":"#savedData read at load","data":{"rawLen":2171},"timestamp":1774301181491,"hypothesisId":"H6"}
 {"sessionId":"1ed2de","location":"app.js:loadFromEmbeddedData","message":"#savedData read at load","data":{"rawLen":2171},"timestamp":1774301188529,"hypothesisId":"H6"}
 {"sessionId":"1ed2de","location":"app.js:loadFromEmbeddedData","message":"#savedData read at load","data":{"rawLen":3573},"timestamp":1774301232690,"hypothesisId":"H6"}
+{"sessionId":"1ed2de","location":"app.js:saveToFile","message":"saveToFile called","data":{"protocol":"https:","href":"https://giboschetti.github.io/rsrg_schichtplanung_vorlage/"},"timestamp":1774301150694,"hypothesisId":"H1"}
