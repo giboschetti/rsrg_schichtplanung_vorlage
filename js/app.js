@@ -490,6 +490,50 @@ function toggleTLFilter(grpId, btn) {
   renderTimeline();
 }
 
+/** Fixed column widths for dual day/night grids (shared for alignment). */
+function getTlColWidths() {
+  const labelW = 140;
+  const dayW = 40;
+  return { labelW, dayW };
+}
+
+/** Build thead for a single-shift table (Tag or Nacht). */
+function buildShiftsHeader(shiftId) {
+  const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
+  let html = '<thead><tr>';
+  html += '<th class="tl-label-th" rowspan="2">Ressource</th>';
+  kwList.forEach(kw => {
+    html += `<th class="tl-kw-th ${sh.cls}" colspan="7">${kw.label}</th>`;
+  });
+  html += '</tr><tr>';
+  kwList.forEach((kw, ki) => {
+    TL_DAYS.forEach((_, dayIdx) => {
+      const dayT = tlDayPlain(kw, dayIdx);
+      const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+      html += `<th class="tl-slot-th tl-day-th ${sh.cls}${kwBorder}"
+        data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${shiftId}"
+        title="${kw.label} ${dayT} ${shiftId === 'T' ? 'Tag' : 'Nacht'}">${tlDayThHtml(kw, dayIdx)}</th>`;
+    });
+  });
+  html += '</tr></thead>';
+  return html;
+}
+
+/** Build one resource row for a single-shift table. */
+function buildResRowForShift(g, shiftId) {
+  const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
+  let html = `<tr class="tl-res-row"><td class="tl-label-td">${g.label}</td>`;
+  kwList.forEach((kw, ki) => {
+    TL_DAYS.forEach((_, dayIdx) => {
+      const items = getSection(kw.id, dayIdx, shiftId, g.section);
+      const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+      html += buildCell(kw.id, dayIdx, shiftId, g, items, sh.cls + kwBorder);
+    });
+  });
+  html += '</tr>';
+  return html;
+}
+
 function renderTimeline() {
   const wrapper = document.getElementById('timelineWrapper');
   if (!wrapper) return;
@@ -500,38 +544,36 @@ function renderTimeline() {
   }
 
   const zoom = tlZoom;
-  let html = '<table class="tl-table"><thead>';
 
   if (zoom === 'shifts') {
-    html += '<tr>';
-    html += '<th class="tl-label-th" rowspan="3">Ressource</th>';
-    kwList.forEach(kw => {
-      html += `<th class="tl-kw-th" colspan="14">${kw.label}</th>`;
-    });
-    html += '</tr>';
+    const { labelW, dayW } = getTlColWidths();
+    const colCount = kwList.length * 7;
+    let colgroup = '<colgroup><col style="width:' + labelW + 'px">';
+    for (let i = 0; i < colCount; i++) colgroup += '<col style="width:' + dayW + 'px">';
+    colgroup += '</colgroup>';
 
-    html += '<tr>';
-    kwList.forEach(kw => {
-      TL_DAYS.forEach((_, dayIdx) => {
-        html += `<th class="tl-day-th" colspan="2">${tlDayThHtml(kw, dayIdx)}</th>`;
-      });
+    let html = '<div class="tl-dual-grid">';
+    html += '<div class="tl-grid-day"><table class="tl-table tl-table-day" style="table-layout:fixed">' + colgroup;
+    html += buildShiftsHeader('T');
+    html += '<tbody>';
+    TL_GROUPS.forEach(g => {
+      if (!tlFilter[g.id]) return;
+      html += buildResRowForShift(g, 'T');
     });
-    html += '</tr>';
-
-    html += '<tr>';
-    kwList.forEach(kw => {
-      TL_DAYS.forEach((_, dayIdx) => {
-        const dayT = tlDayPlain(kw, dayIdx);
-        TL_SHIFTS.forEach(sh => {
-          html += `<th class="tl-slot-th ${sh.cls}"
-            data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${sh.id}"
-            title="${kw.label} ${dayT} ${sh.label}">${sh.id}</th>`;
-        });
-      });
+    html += '</tbody></table></div>';
+    html += '<div class="tl-grid-night"><table class="tl-table tl-table-night" style="table-layout:fixed">' + colgroup;
+    html += buildShiftsHeader('N');
+    html += '<tbody>';
+    TL_GROUPS.forEach(g => {
+      if (!tlFilter[g.id]) return;
+      html += buildResRowForShift(g, 'N');
     });
-    html += '</tr>';
+    html += '</tbody></table></div></div>';
+    wrapper.innerHTML = html;
+  } else {
+    let html = '<table class="tl-table"><thead>';
 
-  } else if (zoom === 'days') {
+  if (zoom === 'days') {
     html += '<tr>';
     html += '<th class="tl-label-th" rowspan="2">Ressource</th>';
     kwList.forEach(kw => {
@@ -569,6 +611,7 @@ function renderTimeline() {
 
   html += '</tbody></table>';
   wrapper.innerHTML = html;
+  }
 
   // Drill-down on slot headers
   wrapper.querySelectorAll('.tl-slot-th.drill').forEach(th => {
@@ -1214,12 +1257,10 @@ function buildStammdatenPDFPage(doc, y, W, proj) {
 
 // ─── KW Summary PDF page ──────────────────────────────────────────────────────
 /**
- * One summary table per KW: rows = Ressource groups, cols = Mo…So (Tag / Nacht).
- * Each cell shows up to 2 items, separated by newlines.
+ * One summary per KW: two stacked tables (Tag top, Nacht bottom).
+ * Same fixed column widths for horizontal alignment; text wraps within cells.
  */
 function buildKWSummaryPage(doc, kw, y, W, proj) {
-  const subtitle = kw.label;
-  // Check if we need a new page
   const H = 210; // landscape
   if (y > H - 55) {
     doc.addPage();
@@ -1228,35 +1269,20 @@ function buildKWSummaryPage(doc, kw, y, W, proj) {
 
   y = pdfSectionHeading(doc, kw.label, y, W);
 
-  // Build header row: Ressource | Mo T | Mo N | Di T | ... | So N
-  const colDays = [];
-  TL_DAYS.forEach(d => {
-    colDays.push(d + ' T');
-    colDays.push(d + ' N');
-  });
-  const headRow = ['Ressource', ...colDays];
-
   const colW_res  = 22;
-  const colW_cell = (W - 24 - colW_res) / 14;
+  const colW_day  = (W - 24 - colW_res) / 7;
 
-  const grpRows = TL_GROUPS.map(g => {
-    const cells = [g.label];
-    TL_DAYS.forEach((_, dayIdx) => {
-      ['T', 'N'].forEach(sh => {
-        const items = getSection(kw.id, dayIdx, sh, g.section);
-        const labels = items.map(it => getItemLabel(it, g.section)).filter(l => l && l !== '–').slice(0, 3);
-        cells.push(labels.join('\n') || '–');
-      });
-    });
-    return cells;
-  });
+  const pdfColStyles = {
+    0: { cellWidth: colW_res, fontStyle: 'bold', fillColor: [240,237,230] },
+    1: { cellWidth: colW_day }, 2: { cellWidth: colW_day }, 3: { cellWidth: colW_day },
+    4: { cellWidth: colW_day }, 5: { cellWidth: colW_day }, 6: { cellWidth: colW_day },
+    7: { cellWidth: colW_day },
+  };
 
-  y = pdfTable(doc, [headRow], grpRows, y, W, {
+  const pdfTableOpts = {
     fontSize: 6.5,
     headFontSize: 6,
-    columnStyles: {
-      0: { cellWidth: colW_res, fontStyle: 'bold', fillColor: [240,237,230] },
-    },
+    columnStyles: pdfColStyles,
     extra: {
       styles: {
         fontSize: 6.5,
@@ -1267,7 +1293,37 @@ function buildKWSummaryPage(doc, kw, y, W, proj) {
         minCellHeight: 7,
       },
     },
+  };
+
+  const headRowTag  = ['Ressource', ...TL_DAYS.map(d => d + ' T')];
+  const headRowNacht = ['Ressource', ...TL_DAYS.map(d => d + ' N')];
+
+  const grpRowsTag = TL_GROUPS.map(g => {
+    const cells = [g.label];
+    TL_DAYS.forEach((_, dayIdx) => {
+      const items = getSection(kw.id, dayIdx, 'T', g.section);
+      const labels = items.map(it => getItemLabel(it, g.section)).filter(l => l && l !== '–').slice(0, 3);
+      cells.push(labels.join('\n') || '–');
+    });
+    return cells;
   });
+
+  const grpRowsNacht = TL_GROUPS.map(g => {
+    const cells = [g.label];
+    TL_DAYS.forEach((_, dayIdx) => {
+      const items = getSection(kw.id, dayIdx, 'N', g.section);
+      const labels = items.map(it => getItemLabel(it, g.section)).filter(l => l && l !== '–').slice(0, 3);
+      cells.push(labels.join('\n') || '–');
+    });
+    return cells;
+  });
+
+  y = pdfTable(doc, [headRowTag], grpRowsTag, y, W, pdfTableOpts);
+
+  y = doc.lastAutoTable.finalY + 10;
+
+  y = pdfTable(doc, [headRowNacht], grpRowsNacht, y, W, pdfTableOpts);
+
   return y;
 }
 

@@ -486,6 +486,16 @@
       color: var(--text-muted); font-style: italic; font-size: 13px;
     }
 
+    /* Dual grid: day shifts on top, night shifts below */
+    .tl-dual-grid {
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .tl-table-day, .tl-table-night {
+      border-collapse: collapse; width: max-content; min-width: 100%; font-size: 11px;
+    }
+    .tl-kw-th.sh-t { background: #DCEBE0; color: #1B5E3F; }
+    .tl-kw-th.sh-n { background: #E2E4F2; color: #3A4580; }
+
     .tl-table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 11px; }
 
     .tl-table thead { position: sticky; top: 0; z-index: 20; }
