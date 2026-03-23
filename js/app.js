@@ -348,7 +348,14 @@ function pasteTimelineShiftFromClipboard() {
     }
     const sectionKeys = Object.keys(sections).filter(k => SHIFT_CLIP_SECTIONS.includes(k));
     if (sectionKeys.length === 1) {
-      applySectionToShift(kwId, dayIdx, shift, sectionKeys[0], sections[sectionKeys[0]]);
+      const clipSection = sectionKeys[0];
+      if (timelineShiftFocus.grp && clipSection !== timelineShiftFocus.grp) {
+        const fromLbl = TL_GROUPS.find(g => g.id === clipSection)?.label || clipSection;
+        const toLbl = TL_GROUPS.find(g => g.id === timelineShiftFocus.grp)?.label || timelineShiftFocus.grp;
+        alert('Verschiedene Ressourcen-Typen – Einfügen nicht möglich.\n\nKopiert: ' + fromLbl + '\nZiel: ' + toLbl);
+        return;
+      }
+      applySectionToShift(kwId, dayIdx, shift, clipSection, sections[clipSection]);
       showToast('Ressource eingefügt');
     } else {
       const fullPayload = {};
