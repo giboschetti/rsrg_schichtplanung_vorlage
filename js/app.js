@@ -818,7 +818,7 @@ function toggleTLFilter(grpId, btn) {
 /** Fixed column widths for dual day/night grids (shared for alignment). */
 function getTlColWidths() {
   const labelW = 140;
-  const dayW = 40;
+  const dayW = 80;
   return { labelW, dayW };
 }
 

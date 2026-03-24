@@ -510,7 +510,7 @@
       display: flex; flex-direction: column; gap: 12px;
     }
     .tl-table-day, .tl-table-night {
-      border-collapse: collapse; width: max-content; min-width: 100%; font-size: 11px;
+      border-collapse: collapse; width: max-content; font-size: 11px;
     }
     .tl-kw-th.sh-t { background: #DCEBE0; color: #1B5E3F; }
     .tl-kw-th.sh-n { background: #E2E4F2; color: #3A4580; }
@@ -552,7 +552,7 @@
       font-size: 9px; font-weight: 700; text-transform: uppercase;
       padding: 3px 2px; text-align: center;
       border-left: 1px solid var(--border);
-      min-width: 40px; white-space: nowrap; cursor: pointer;
+      min-width: 80px; max-width: 80px; white-space: nowrap; cursor: pointer;
     }
     .tl-slot-th.sh-t { background: #DCEBE0; color: #1B5E3F; }
     .tl-slot-th.sh-n { background: #E2E4F2; color: #3A4580; }
@@ -583,9 +583,10 @@
     .tl-cell {
       border-left: 1px solid #E8E4DC;
       border-bottom: 1px solid #E8E4DC;
-      padding: 2px; min-width: 40px; min-height: 28px;
+      padding: 2px; min-height: 28px;
       vertical-align: top; cursor: pointer;
       background: white; transition: background 0.1s;
+      overflow: hidden;
     }
     .tl-cell:hover { background: #FFF8EC !important; }
     .tl-cell.selected { background: #FFF3D4 !important; outline: 2px solid var(--accent); outline-offset: -2px; }
