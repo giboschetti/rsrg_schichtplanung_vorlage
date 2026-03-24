@@ -1233,7 +1233,7 @@ function initSDPTables(kwId, dayIdx, shift) {
     columns: [
       sdpDeleteColumn(kwId, dayIdx, shift, 'tasks'),
       { title: 'Tätigkeit', field: 'name', editor: 'input', widthGrow: 2 },
-      { title: 'Beschreibung', field: 'beschreibung', editor: 'textarea', widthGrow: 2 },
+      { title: 'Beschreibung', field: 'beschreibung', editor: 'textarea', widthGrow: 2, cellClick: (e, cell) => cell.edit(true) },
       { title: 'Bereich / Ort', field: 'location', editor: 'input', widthGrow: 1 },
       sdpResStatusColumn(118),
       { title: 'Notizen', field: 'notes', editor: 'input', widthGrow: 1 },
