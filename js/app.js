@@ -46,7 +46,8 @@ let shiftConfig = { tag: { von: '07:00', bis: '19:00' }, nacht: { von: '19:00', 
 // ─── Dirty / Clean ───────────────────────────────────────────────────────────
 
 function markDirty() {
-  document.getElementById('btnSave')?.classList.add('dirty');
+  const btn = document.getElementById('btnSave');
+  if (btn) { btn.classList.add('dirty'); btn.disabled = false; }
   scheduleSyncSavedDataToDom();
 }
 function markClean()  { document.getElementById('btnSave')?.classList.remove('dirty'); }
@@ -1903,7 +1904,9 @@ function addPDFFooters(doc) { pdfFooters(doc, true); }
 
 // ─── Save to File ─────────────────────────────────────────────────────────────
 
-function saveToFile() {
+let _fileSystemHandle = null; // retained across saves within the same session
+
+async function saveToFile() {
   const saveBtn = document.getElementById('btnSave');
   try {
     if (saveBtn) saveBtn.disabled = true;
@@ -1938,64 +1941,71 @@ function saveToFile() {
     catch (e) { console.warn('Could not get table data for', id, e); }
   });
 
-  function doDownload(html) {
-    const proj = stammdaten.projektname?.trim();
-    const filename = proj
-      ? 'Schichtplanung_' + proj.replace(/[^\w\-äöüÄÖÜ ]/g, '').replace(/\s+/g, '_') + '.html'
-      : 'schichtplanung.html';
+  const proj = stammdaten.projektname?.trim();
+  const filename = proj
+    ? 'Schichtplanung_' + proj.replace(/[^\w\-äöüÄÖÜ ]/g, '').replace(/\s+/g, '_') + '.html'
+    : 'schichtplanung.html';
 
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-
-    if (location.protocol === 'file:') {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 500);
-      markClean();
-      showToast('Datei gespeichert – oder Strg+S falls nötig');
-      return;
+  // Try File System Access API (Chrome/Edge) — writes directly back to disk
+  async function saveViaFSA(html) {
+    if (!('showSaveFilePicker' in window)) return false;
+    try {
+      if (!_fileSystemHandle) {
+        _fileSystemHandle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: 'HTML Datei', accept: { 'text/html': ['.html'] } }],
+        });
+      }
+      const writable = await _fileSystemHandle.createWritable();
+      await writable.write(html);
+      await writable.close();
+      return true;
+    } catch (e) {
+      if (e.name === 'AbortError') { _fileSystemHandle = null; return null; } // user cancelled
+      console.warn('FSA save failed, falling back to download:', e);
+      _fileSystemHandle = null;
+      return false;
     }
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 200);
-
-    markClean();
-    showToast('Standalone-Datei exportiert');
   }
 
-  if (isStandaloneDocument()) {
-    try {
-      const html = buildStandaloneHtmlSync(snapshot);
-      doDownload(html);
-    } catch (err) {
-      console.error('Standalone export failed:', err);
-      showToast('Export fehlgeschlagen: ' + (err?.message || 'Unbekannter Fehler'));
+  // Fallback: trigger a browser download
+  function saveViaDownload(html) {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+  }
+
+  async function doSave(html) {
+    const fsaResult = await saveViaFSA(html);
+    if (fsaResult === null) {
+      // user cancelled the picker — restore button, do nothing
+      if (saveBtn) saveBtn.disabled = false;
+      return;
+    }
+    if (fsaResult) {
+      markClean();
+      showToast('✅ Direkt gespeichert: ' + (_fileSystemHandle?.name || filename));
+    } else {
+      saveViaDownload(html);
+      markClean();
+      showToast('Datei heruntergeladen – bitte Original ersetzen');
     }
     if (saveBtn) saveBtn.disabled = false;
-  } else {
-    buildStandaloneHtml(snapshot).then(html => {
-      doDownload(html);
-    }).catch(err => {
-      console.error('Standalone export failed:', err);
-      showToast('Export fehlgeschlagen – bitte erneut versuchen');
-    }).finally(() => {
-      if (saveBtn) saveBtn.disabled = false;
-    });
+  }
+
+  try {
+    const html = isStandaloneDocument()
+      ? buildStandaloneHtmlSync(snapshot)
+      : await buildStandaloneHtml(snapshot);
+    await doSave(html);
+  } catch (err) {
+    console.error('Standalone export failed:', err);
+    showToast('Export fehlgeschlagen: ' + (err?.message || 'Unbekannter Fehler'));
+    if (saveBtn) saveBtn.disabled = false;
   }
 }
 
