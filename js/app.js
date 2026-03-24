@@ -1195,19 +1195,6 @@ function sdpResStatusColumn(width = 118) {
 }
 
 /** Erste Spalte: rote X-Schaltfläche zum Löschen der Zeile. */
-function sdpTextareaEditor(cell, onRendered, success, cancel) {
-  const el = document.createElement('textarea');
-  el.style.cssText = 'width:100%;min-height:54px;box-sizing:border-box;padding:2px 4px;resize:vertical;border:none;outline:none;font:inherit;background:transparent;display:block;';
-  el.value = String(cell.getValue() ?? '');
-  onRendered(() => { el.focus(); cell.getRow().normalizeHeight(); });
-  el.addEventListener('blur', () => success(el.value));
-  el.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { e.stopPropagation(); cancel(); }
-    if (e.key === 'Enter' && !e.shiftKey) { e.stopPropagation(); success(el.value); }
-  });
-  return el;
-}
-
 function sdpDeleteColumn(kwId, dayIdx, shift, section) {
   return {
     title: '',
@@ -1252,7 +1239,7 @@ function initSDPTables(kwId, dayIdx, shift) {
     columns: [
       sdpDeleteColumn(kwId, dayIdx, shift, 'tasks'),
       { title: 'Tätigkeit', field: 'name', editor: 'input', widthGrow: 2 },
-      { title: 'Beschreibung', field: 'beschreibung', editor: sdpTextareaEditor, widthGrow: 2 },
+      { title: 'Beschreibung', field: 'beschreibung', editor: 'input', widthGrow: 2 },
       { title: 'Bereich / Ort', field: 'location', editor: 'input', widthGrow: 1 },
       sdpResStatusColumn(118),
       { title: 'Notizen', field: 'notes', editor: 'input', widthGrow: 1 },
