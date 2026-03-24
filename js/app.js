@@ -758,7 +758,12 @@ function toggleSection(hdr) {
 
 function toggleSDPSection(hdr) {
   hdr.classList.toggle('collapsed');
-  hdr.nextElementSibling.classList.toggle('collapsed');
+  const body = hdr.nextElementSibling;
+  body.classList.toggle('collapsed');
+  if (!body.classList.contains('collapsed')) {
+    const grp = hdr.closest('.sdp-section')?.dataset?.grp;
+    if (grp && sdpTables[grp]) sdpTables[grp].redraw(true);
+  }
 }
 
 function collapseAllSDPSections() {
@@ -777,6 +782,7 @@ function showOnlySDPSection(grp) {
       const body = sec.querySelector('.sdp-section-body');
       if (hdr) hdr.classList.remove('collapsed');
       if (body) body.classList.remove('collapsed');
+      if (sdpTables[grp]) setTimeout(() => sdpTables[grp].redraw(true), 0);
     } else {
       sec.classList.add('sdp-section-hidden');
     }
@@ -1233,7 +1239,7 @@ function initSDPTables(kwId, dayIdx, shift) {
     columns: [
       sdpDeleteColumn(kwId, dayIdx, shift, 'tasks'),
       { title: 'Tätigkeit', field: 'name', editor: 'input', widthGrow: 2 },
-      { title: 'Beschreibung', field: 'beschreibung', editor: 'textarea', widthGrow: 2, cellClick: (e, cell) => cell.edit(true) },
+      { title: 'Beschreibung', field: 'beschreibung', editor: 'textarea', widthGrow: 2 },
       { title: 'Bereich / Ort', field: 'location', editor: 'input', widthGrow: 1 },
       sdpResStatusColumn(118),
       { title: 'Notizen', field: 'notes', editor: 'input', widthGrow: 1 },
