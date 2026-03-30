@@ -1,4 +1,5 @@
 import {
+  arrayUnion,
   addDoc,
   collection,
   doc,
@@ -6,12 +7,14 @@ import {
   getDocs,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { db } from "./firebase-init.js";
 
 const PROJECTS_COLLECTION = "projects";
+const USERS_COLLECTION = "users";
 
 function projectsCollection() {
   return collection(db, PROJECTS_COLLECTION);
@@ -20,6 +23,7 @@ function projectsCollection() {
 function defaultProjectPayload(ownerId, name) {
   return {
     ownerId,
+    memberIds: [ownerId],
     name: name || "Neues Projekt",
     schemaVersion: 1,
     overview: {},
@@ -62,9 +66,17 @@ export async function createProject(ownerId, name) {
 }
 
 export async function listProjects(ownerId) {
-  const q = query(projectsCollection(), where("ownerId", "==", ownerId));
-  const snap = await getDocs(q);
-  return snap.docs.map((projectDoc) => ({ id: projectDoc.id, ...projectDoc.data() }));
+  const byMembershipQuery = query(projectsCollection(), where("memberIds", "array-contains", ownerId));
+  const byOwnerQuery = query(projectsCollection(), where("ownerId", "==", ownerId));
+  const [membershipSnap, ownerSnap] = await Promise.all([getDocs(byMembershipQuery), getDocs(byOwnerQuery)]);
+  const merged = new Map();
+  membershipSnap.docs.forEach((projectDoc) => {
+    merged.set(projectDoc.id, { id: projectDoc.id, ...projectDoc.data() });
+  });
+  ownerSnap.docs.forEach((projectDoc) => {
+    merged.set(projectDoc.id, { id: projectDoc.id, ...projectDoc.data() });
+  });
+  return Array.from(merged.values());
 }
 
 export async function getProject(projectId) {
@@ -78,6 +90,35 @@ export async function saveProjectData(projectId, payload) {
   const ref = doc(db, PROJECTS_COLLECTION, projectId);
   await updateDoc(ref, {
     ...payload,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function ensureUserProfile(user) {
+  if (!user?.uid) return;
+  const ref = doc(db, USERS_COLLECTION, user.uid);
+  await setDoc(
+    ref,
+    {
+      uid: user.uid,
+      email: user.email || "",
+      displayName: user.displayName || "",
+      photoURL: user.photoURL || "",
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+export async function listRegisteredUsers() {
+  const snap = await getDocs(collection(db, USERS_COLLECTION));
+  return snap.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() }));
+}
+
+export async function addProjectMember(projectId, userId) {
+  const ref = doc(db, PROJECTS_COLLECTION, projectId);
+  await updateDoc(ref, {
+    memberIds: arrayUnion(userId),
     updatedAt: serverTimestamp(),
   });
 }

@@ -150,6 +150,21 @@
         </div>
       </div>
     </div>
+
+    <div class="section-card">
+      <div class="section-hdr" onclick="toggleSection(this)">
+        <span>Benutzerverwaltung</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <div class="dashboard-create-row">
+          <select id="memberSelect" class="dashboard-input"></select>
+          <button id="btnAddMember" class="btn btn-accent" type="button">Add new user</button>
+        </div>
+        <div class="dashboard-status">Entfernen ist derzeit deaktiviert.</div>
+        <div id="memberList" class="projects-list"></div>
+      </div>
+    </div>
   </div>
 
   <!-- PAGE 2: Übersicht -->

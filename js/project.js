@@ -1,5 +1,11 @@
 import { observeAuthState, signOutCurrentUser } from "./auth.js";
-import { getProject, saveProjectData } from "./firestore-service.js";
+import {
+  addProjectMember,
+  ensureUserProfile,
+  getProject,
+  listRegisteredUsers,
+  saveProjectData,
+} from "./firestore-service.js";
 
 const LOCAL_KEYS = ["stammdaten", "shiftConfig", "kwList", "workItems", "t_mitarbeiter"];
 
@@ -39,6 +45,9 @@ const ui = {
   btnCloudSaveNow: document.getElementById("btnCloudSaveNow"),
   btnSignOutProject: document.getElementById("btnSignOutProject"),
   btnBackToDashboard: document.getElementById("btnBackToDashboard"),
+  memberSelect: document.getElementById("memberSelect"),
+  btnAddMember: document.getElementById("btnAddMember"),
+  memberList: document.getElementById("memberList"),
 };
 const BOOTSTRAP_SESSION_KEY_PREFIX = "sp.bootstrapSnapshotHash.";
 const BOOTSTRAP_RELOADED_PREFIX = "sp.bootstrapReloaded.";
@@ -52,6 +61,15 @@ function setCloudState(message, isError = false) {
   if (!ui.cloudSaveState) return;
   ui.cloudSaveState.textContent = message || "";
   ui.cloudSaveState.style.color = isError ? "#FFB4B4" : "rgba(255,255,255,0.7)";
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function parseJsonSafe(raw, fallback) {
@@ -93,6 +111,12 @@ function normalizeSnapshot(snapshot) {
     kwList: Array.isArray(snapshot?.kwList) ? snapshot.kwList : [],
     workItems: snapshot?.workItems && typeof snapshot.workItems === "object" ? snapshot.workItems : {},
   };
+}
+
+function getProjectMemberIds(projectDoc) {
+  const ids = Array.isArray(projectDoc?.memberIds) ? [...projectDoc.memberIds] : [];
+  if (projectDoc?.ownerId && !ids.includes(projectDoc.ownerId)) ids.push(projectDoc.ownerId);
+  return Array.from(new Set(ids.filter(Boolean)));
 }
 
 function extractSnapshotFromLocalStorage() {
@@ -208,6 +232,7 @@ function toFirestoreProjectPayload(snapshot, existingDoc) {
 
   return {
     name: projectName,
+    memberIds: getProjectMemberIds(existingDoc),
     schemaVersion: 1,
     overview,
     stammdaten: {
@@ -219,6 +244,63 @@ function toFirestoreProjectPayload(snapshot, existingDoc) {
     kalenderwochen,
     plannerData: normalized,
   };
+}
+
+function getUserLabel(userDoc) {
+  const display = (userDoc?.displayName || "").trim();
+  const email = (userDoc?.email || "").trim();
+  if (display && email) return `${display} (${email})`;
+  return display || email || userDoc?.uid || userDoc?.id || "Unbekannt";
+}
+
+function renderMemberList(registeredUsers) {
+  if (!ui.memberList) return;
+  const members = getProjectMemberIds(state.projectDoc);
+  if (!members.length) {
+    ui.memberList.innerHTML =
+      '<div class="project-row"><div class="project-meta"><strong>Keine Benutzer zugewiesen.</strong></div></div>';
+    return;
+  }
+  const byId = new Map((registeredUsers || []).map((u) => [u.uid || u.id, u]));
+  ui.memberList.innerHTML = members
+    .map((uid) => {
+      const userDoc = byId.get(uid) || { uid };
+      const label = escapeHtml(getUserLabel(userDoc));
+      return `
+        <div class="project-row">
+          <div class="project-meta">
+            <strong>${label}</strong>
+            <span>${escapeHtml(uid)}</span>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderMemberSelect(registeredUsers) {
+  if (!ui.memberSelect) return;
+  const members = new Set(getProjectMemberIds(state.projectDoc));
+  const candidates = (registeredUsers || []).filter((u) => !members.has(u.uid || u.id));
+  if (!candidates.length) {
+    ui.memberSelect.innerHTML = '<option value="">Keine weiteren registrierten Nutzer</option>';
+    if (ui.btnAddMember) ui.btnAddMember.disabled = true;
+    return;
+  }
+  ui.memberSelect.innerHTML = candidates
+    .map((u) => {
+      const id = u.uid || u.id;
+      return `<option value="${escapeHtml(id)}">${escapeHtml(getUserLabel(u))}</option>`;
+    })
+    .join("");
+  if (ui.btnAddMember) ui.btnAddMember.disabled = false;
+}
+
+async function refreshMemberUi() {
+  if (!state.projectDoc) return;
+  const users = await listRegisteredUsers();
+  renderMemberList(users);
+  renderMemberSelect(users);
 }
 
 async function persistNow() {
@@ -300,12 +382,27 @@ function bindUiEvents() {
     window.location.href = "index.html";
   });
   ui.btnBackToDashboard?.setAttribute("href", "index.html");
+  ui.btnAddMember?.addEventListener("click", async () => {
+    const userId = ui.memberSelect?.value;
+    if (!userId || !state.projectId) return;
+    try {
+      await addProjectMember(state.projectId, userId);
+      const fresh = await getProject(state.projectId);
+      if (fresh) state.projectDoc = fresh;
+      await refreshMemberUi();
+      setCloudState("Benutzer hinzugefügt");
+    } catch (error) {
+      console.error("Benutzer konnte nicht hinzugefügt werden.", error);
+      setCloudState("Benutzer hinzufügen fehlgeschlagen", true);
+    }
+  });
 }
 
 async function loadProjectForUser(user, projectId) {
   const project = await getProject(projectId);
   if (!project) throw new Error("Projekt wurde nicht gefunden.");
-  if (project.ownerId !== user.uid) throw new Error("Kein Zugriff auf dieses Projekt.");
+  const memberIds = getProjectMemberIds(project);
+  if (!memberIds.includes(user.uid)) throw new Error("Kein Zugriff auf dieses Projekt.");
 
   state.projectDoc = project;
   const snapshot = snapshotFromProjectDoc(project);
@@ -317,6 +414,7 @@ async function loadProjectForUser(user, projectId) {
   }
   state.lastSnapshotHash = snapshotHash(snapshot);
   setCloudState("Projekt geladen");
+  await refreshMemberUi();
   return true;
 }
 
@@ -328,6 +426,7 @@ function authGuard() {
     }
 
     state.user = user;
+    await ensureUserProfile(user);
     const projectId = getProjectIdFromQuery();
     if (!projectId) {
       window.location.href = "index.html";

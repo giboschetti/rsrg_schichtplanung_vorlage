@@ -4,7 +4,7 @@ import {
   signInWithGoogle,
   signOutCurrentUser,
 } from "./auth.js";
-import { createProject, listProjects } from "./firestore-service.js";
+import { createProject, ensureUserProfile, listProjects } from "./firestore-service.js";
 
 const ui = {
   userLabel: document.getElementById("authUserLabel"),
@@ -156,6 +156,7 @@ function initDashboard() {
       setStatus("Bitte mit Google anmelden.");
       return;
     }
+    await ensureUserProfile(user);
     await refreshProjects();
   });
 }
