@@ -593,6 +593,10 @@
       font-weight: 700;
       background: #F8F4ED;
     }
+    .tl-tasks-parent-row .tl-label-td {
+      font-weight: 700;
+      background: #F8F4ED;
+    }
     .tl-label-td.tl-label-td-child {
       padding-left: 22px;
       font-size: 11px;
@@ -616,6 +620,9 @@
     .tl-cell.sh-t:hover { background: #F0FFF0 !important; }
     .tl-cell.sh-n:hover { background: #F0F0FF !important; }
     .tl-cell.kw-border { border-left: 3px solid var(--accent); }
+    .tl-cell.tl-cell-parent-summary {
+      background: #FCFAF6 !important;
+    }
 
     .tl-block {
       font-family: var(--font-s);

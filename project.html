@@ -156,6 +156,20 @@
 
     <div class="section-card">
       <div class="section-hdr" onclick="toggleSection(this)">
+        <span>Bauphase / Bauteil</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <div class="dashboard-create-row">
+          <input id="sd-bauphase-input" class="dashboard-input" type="text" placeholder="z. B. Gleisbau, Entwässerung, Betonplatte">
+          <button id="btnAddBauphase" class="btn btn-accent" type="button">+ Eintrag</button>
+        </div>
+        <div id="bauphaseList" class="projects-list"></div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-hdr" onclick="toggleSection(this)">
         <span>Benutzerverwaltung</span>
         <span class="chevron">▼</span>
       </div>
@@ -350,6 +364,7 @@
       </div>
       <div class="bulk-add-type-panel" data-type="tasks" style="display:none">
         <div class="form-group"><label>Tätigkeit</label><input type="text" id="bulk-tasks-name" placeholder="z.B. Aushub"></div>
+        <div class="form-group"><label>Bauphase / Bauteil</label><select id="bulk-tasks-bauphase"><option value="">— Ohne Bauphase/Bauteil —</option></select></div>
         <div class="form-group"><label>Beschreibung</label><textarea id="bulk-tasks-beschreibung" rows="3" placeholder="Ausführliche Beschreibung der Tätigkeit"></textarea></div>
         <div class="form-group"><label>Bereich / Ort</label><input type="text" id="bulk-tasks-location"></div>
         <div class="form-group"><label>Status</label><select id="bulk-tasks-status"><option value="">—</option><option value="Planung">Planung</option><option value="Bestellt">Bestellt</option><option value="Bestätigt">Bestätigt</option></select></div>

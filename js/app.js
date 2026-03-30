@@ -24,7 +24,7 @@ const tables = {};
 const kwList = []; // [{id, label, num, year, dateFrom, dateTo}]
 
 // workItems[key] = {
-//   tasks:         [{id, name, beschreibung, location, resStatus, notes}]
+//   tasks:         [{id, name, bauphaseBauteil, beschreibung, location, resStatus, notes}]
 //   personal:      [{id, name, funktion, resStatus, bemerkung}]
 //   inventar:      [{id, geraet, anzahl, resStatus, bemerkung}]
 //   material:      [{id, material, menge, einheit, resStatus, bemerkung}]
@@ -49,6 +49,7 @@ let lastClipboardInternal = null;
 const sdpTables = {}; // { tasks: Tabulator, personal: Tabulator, ... }
 
 let shiftConfig = { tag: { von: '07:00', bis: '19:00' }, nacht: { von: '19:00', bis: '07:00' } };
+let bauphaseBauteile = [];
 
 // ─── Dirty / Clean ───────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ function syncSavedDataToDom() {
       const e = document.getElementById('sd-' + id);
       if (e) stammdaten[id] = e.value;
     });
+    stammdaten.bauphaseBauteile = [...bauphaseBauteile];
     const snapshot = {
       savedAt: new Date().toISOString(),
       stammdaten,
@@ -134,6 +136,7 @@ function saveStammdaten() {
   const ids = ['projektname','projektnummer','auftraggeber','bauleiter','polier','standort','baubeginn','bauende'];
   const data = {};
   ids.forEach(id => { const el = document.getElementById('sd-' + id); if (el) data[id] = el.value; });
+  data.bauphaseBauteile = [...bauphaseBauteile];
   localStorage.setItem('stammdaten', JSON.stringify(data));
   markDirty();
 }
@@ -147,6 +150,7 @@ function loadStammdaten() {
       const el = document.getElementById('sd-' + k);
       if (el) el.value = v;
     });
+    setBauphaseBauteile(data?.bauphaseBauteile || []);
   } catch(e) {}
 }
 
@@ -176,6 +180,66 @@ function loadShiftConfig() {
 function updateHeaderProj() {
   const el = document.getElementById('headerProjName');
   if (el) el.textContent = document.getElementById('sd-projektname')?.value || '';
+}
+
+function normalizeBauphaseBauteilValue(raw) {
+  return String(raw || '').trim();
+}
+
+function setBauphaseBauteile(values) {
+  const seen = new Set();
+  bauphaseBauteile = (Array.isArray(values) ? values : [])
+    .map(normalizeBauphaseBauteilValue)
+    .filter(v => v.length > 0)
+    .filter(v => {
+      const k = v.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  renderBauphaseBauteileList();
+  renderBauphaseBauteilOptions();
+}
+
+function getBauphaseBauteilOptions() {
+  return [...bauphaseBauteile];
+}
+
+function renderBauphaseBauteileList() {
+  const el = document.getElementById('bauphaseList');
+  if (!el) return;
+  if (!bauphaseBauteile.length) {
+    el.innerHTML = '<div class="project-row"><div class="project-meta"><strong>Keine Bauphase/Bauteile definiert.</strong></div></div>';
+    return;
+  }
+  el.innerHTML = bauphaseBauteile.map((value, idx) => `
+    <div class="project-row">
+      <div class="project-meta">
+        <input type="text" class="dashboard-input" value="${escAttr(value)}" data-bauphase-idx="${idx}">
+      </div>
+      <button class="btn btn-danger" type="button" data-bauphase-remove="${idx}">✕</button>
+    </div>
+  `).join('');
+}
+
+function renderBauphaseBauteilOptions() {
+  const select = document.getElementById('bulk-tasks-bauphase');
+  if (select) {
+    const current = select.value || '';
+    const opts = ['<option value="">— Ohne Bauphase/Bauteil —</option>']
+      .concat(getBauphaseBauteilOptions().map(v => `<option value="${escAttr(v)}">${escAttr(v)}</option>`));
+    select.innerHTML = opts.join('');
+    if (current && getBauphaseBauteilOptions().includes(current)) select.value = current;
+  }
+}
+
+function addBauphaseBauteilFromInput() {
+  const input = document.getElementById('sd-bauphase-input');
+  const value = normalizeBauphaseBauteilValue(input?.value || '');
+  if (!value) return;
+  setBauphaseBauteile([...bauphaseBauteile, value]);
+  saveStammdaten();
+  if (input) input.value = '';
 }
 
 // ─── Tab Management ──────────────────────────────────────────────────────────
@@ -285,6 +349,7 @@ function bulkAddTypeChanged() {
   document.querySelectorAll('.bulk-add-type-panel').forEach(panel => {
     panel.style.display = panel.dataset.type === type ? '' : 'none';
   });
+  if (type === 'tasks') renderBauphaseBauteilOptions();
   updateBulkAddPreview();
 }
 
@@ -340,6 +405,7 @@ function collectBulkAddData(section) {
     row.bemerkung = (document.getElementById('bulk-inventar-bemerkung')?.value || '').trim();
   } else if (section === 'tasks') {
     row.name = (document.getElementById('bulk-tasks-name')?.value || '').trim();
+    row.bauphaseBauteil = normalizeBauphaseBauteilValue(document.getElementById('bulk-tasks-bauphase')?.value || '');
     row.beschreibung = (document.getElementById('bulk-tasks-beschreibung')?.value || '').trim();
     row.location = (document.getElementById('bulk-tasks-location')?.value || '').trim();
     row.resStatus = (document.getElementById('bulk-tasks-status')?.value || '').trim();
@@ -1076,18 +1142,77 @@ function getPersonalItemsByFunction(kwId, dayIdx, shift, funktion) {
   return getSection(kwId, dayIdx, shift, 'personal').filter(r => normalizePersonalFunktion(r?.funktion) === funktion);
 }
 
+function normalizeTaskBauphaseBauteil(raw) {
+  const v = normalizeBauphaseBauteilValue(raw);
+  return v || 'Ohne Bauphase/Bauteil';
+}
+
+function getUsedTaskBauphaseBauteile() {
+  const set = new Set();
+  Object.values(workItems).forEach(cell => {
+    const rows = Array.isArray(cell?.tasks) ? cell.tasks : [];
+    rows.forEach(r => set.add(normalizeTaskBauphaseBauteil(r?.bauphaseBauteil)));
+  });
+
+  const unassigned = 'Ohne Bauphase/Bauteil';
+  const used = [];
+  getBauphaseBauteilOptions().forEach(v => {
+    if (set.has(v)) used.push(v);
+  });
+  const extras = Array.from(set)
+    .filter(v => v !== unassigned && !used.includes(v))
+    .sort((a, b) => a.localeCompare(b, 'de-CH'));
+  used.push(...extras);
+  if (set.has(unassigned)) used.push(unassigned);
+  return used;
+}
+
+function getTaskItemsByBauphaseBauteil(kwId, dayIdx, shift, bauphaseBauteil) {
+  return getSection(kwId, dayIdx, shift, 'tasks')
+    .filter(r => normalizeTaskBauphaseBauteil(r?.bauphaseBauteil) === bauphaseBauteil);
+}
+
+function buildTasksRowsForShift(shiftId) {
+  const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
+  const tasksGroup = { id: 'tasks', label: 'Tätigkeiten', section: 'tasks' };
+  const phases = getUsedTaskBauphaseBauteile();
+
+  // Parent row is summary-only (no badges).
+  let html = `<tr class="tl-res-row tl-tasks-parent-row"><td class="tl-label-td tl-tasks-parent">Tätigkeiten</td>`;
+  kwList.forEach((kw, ki) => {
+    TL_DAYS.forEach((_, dayIdx) => {
+      const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+      html += buildCell(kw.id, dayIdx, shiftId, tasksGroup, [], sh.cls + kwBorder + ' tl-cell-parent-summary');
+    });
+  });
+  html += '</tr>';
+
+  phases.forEach(phase => {
+    html += `<tr class="tl-res-row tl-tasks-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(phase)}</td>`;
+    kwList.forEach((kw, ki) => {
+      TL_DAYS.forEach((_, dayIdx) => {
+        const items = getTaskItemsByBauphaseBauteil(kw.id, dayIdx, shiftId, phase);
+        const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+        html += buildCell(kw.id, dayIdx, shiftId, tasksGroup, items, sh.cls + kwBorder);
+      });
+    });
+    html += '</tr>';
+  });
+
+  return html;
+}
+
 function buildPersonalRowsForShift(shiftId) {
   const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
   const personalGroup = { id: 'personal', label: 'Personal', section: 'personal' };
   const functions = getUsedPersonalFunctions();
 
-  // Parent row keeps the complete personal overview.
+  // Parent row is summary-only (no badges).
   let html = `<tr class="tl-res-row tl-personal-parent-row"><td class="tl-label-td tl-personal-parent">Personal</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
-      const items = getSection(kw.id, dayIdx, shiftId, 'personal');
       const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-      html += buildCell(kw.id, dayIdx, shiftId, personalGroup, items, sh.cls + kwBorder);
+      html += buildCell(kw.id, dayIdx, shiftId, personalGroup, [], sh.cls + kwBorder + ' tl-cell-parent-summary');
     });
   });
   html += '</tr>';
@@ -1133,6 +1258,7 @@ function renderTimeline() {
     TL_GROUPS.forEach(g => {
       if (!tlFilter[g.id]) return;
       if (g.id === 'personal') html += buildPersonalRowsForShift('T');
+      else if (g.id === 'tasks') html += buildTasksRowsForShift('T');
       else html += buildResRowForShift(g, 'T');
     });
     html += '</tbody></table></div>';
@@ -1142,6 +1268,7 @@ function renderTimeline() {
     TL_GROUPS.forEach(g => {
       if (!tlFilter[g.id]) return;
       if (g.id === 'personal') html += buildPersonalRowsForShift('N');
+      else if (g.id === 'tasks') html += buildTasksRowsForShift('N');
       else html += buildResRowForShift(g, 'N');
     });
     html += '</tbody></table></div></div>';
@@ -1502,6 +1629,13 @@ function buildSdpRowContextMenu(kwId, dayIdx, shift, section) {
 
 const SDP_FUNKTION_VALUES = ['Baugruppe','Sicherheit','Maschinist','Polier','Bauleiter','Fremdfirma'];
 
+function sdpTaskBauphaseEditor(cell, onRendered, success) {
+  const current = normalizeBauphaseBauteilValue(cell?.getValue?.() || '');
+  const choices = getBauphaseBauteilOptions();
+  if (current && !choices.includes(current)) choices.push(current);
+  return sdpNativeSelectEditor(choices, '— Ohne Bauphase/Bauteil —')(cell, onRendered, success);
+}
+
 function closeSDP() {
   flushOpenSDPTables();
   selectedCell = null;
@@ -1526,6 +1660,7 @@ function initSDPTables(kwId, dayIdx, shift) {
     columns: [
       sdpDeleteColumn(kwId, dayIdx, shift, 'tasks'),
       { title: 'Tätigkeit', field: 'name', editor: 'input', widthGrow: 2 },
+      { title: 'Bauphase / Bauteil', field: 'bauphaseBauteil', editor: sdpTaskBauphaseEditor, widthGrow: 1.4 },
       { title: 'Beschreibung', field: 'beschreibung', editor: 'input', widthGrow: 2 },
       { title: 'Bereich / Ort', field: 'location', editor: 'input', widthGrow: 1 },
       sdpResStatusColumn(118),
@@ -2215,6 +2350,7 @@ async function saveToFile() {
     const el = document.getElementById('sd-' + id);
     if (el) stammdaten[id] = el.value;
   });
+  stammdaten.bauphaseBauteile = [...bauphaseBauteile];
 
   const snapshot = {
     savedAt:     new Date().toISOString(),
@@ -2504,6 +2640,7 @@ window.addEventListener('DOMContentLoaded', () => {
   loadFromEmbeddedData();
   loadWorkItemsLS();
   loadStammdaten();
+  setBauphaseBauteile(bauphaseBauteile);
   loadShiftConfig();
   updateHeaderProj();
   initStaticTables();
@@ -2523,6 +2660,33 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('kwNum').addEventListener('keydown', e => {
     if (e.key === 'Enter')  confirmAddKW();
     if (e.key === 'Escape') closeModal();
+  });
+  document.getElementById('btnAddBauphase')?.addEventListener('click', addBauphaseBauteilFromInput);
+  document.getElementById('sd-bauphase-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addBauphaseBauteilFromInput();
+    }
+  });
+  document.getElementById('bauphaseList')?.addEventListener('click', e => {
+    const removeIdx = e.target?.closest?.('[data-bauphase-remove]')?.dataset?.bauphaseRemove;
+    if (removeIdx == null) return;
+    const idx = parseInt(removeIdx, 10);
+    if (Number.isNaN(idx)) return;
+    setBauphaseBauteile(bauphaseBauteile.filter((_, i) => i !== idx));
+    saveStammdaten();
+  });
+  document.getElementById('bauphaseList')?.addEventListener('change', e => {
+    const input = e.target?.closest?.('[data-bauphase-idx]');
+    if (!input) return;
+    const idx = parseInt(input.dataset.bauphaseIdx, 10);
+    if (Number.isNaN(idx)) return;
+    const next = [...bauphaseBauteile];
+    const updatedValue = normalizeBauphaseBauteilValue(input.value || '');
+    if (!updatedValue) next.splice(idx, 1);
+    else next[idx] = updatedValue;
+    setBauphaseBauteile(next);
+    saveStammdaten();
   });
   document.getElementById('addKWModal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal();
