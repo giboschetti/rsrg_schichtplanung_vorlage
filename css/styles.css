@@ -635,7 +635,9 @@
       border-radius: 14px;
       box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
       border: 1px solid rgba(148, 163, 184, 0.45);
-      overflow: hidden;
+      /* keep overflow visible so sticky first column continues to work
+         while the inner table scrolls horizontally inside timeline-wrapper */
+      overflow: visible;
     }
 
     /* Avoid tables expanding to full container width inside flex cards */
