@@ -3,10 +3,10 @@ import re
 import subprocess
 import sys
 import urllib.request
+import glob
 
 
 PROJECT_ID = "rsrg-schichtplanung"
-HTML_PATH = "assets/Schichtplanung_Ausbau_SZU_Zürich_Los_1.html"
 TARGET_PROJECT_NAME = "Ausbau SZU Zürich Los 1"
 
 
@@ -167,7 +167,20 @@ def patch_project_document(token, doc_name, fields):
 
 def main():
     token = get_firebase_access_token()
-    snapshot = read_embedded_snapshot(HTML_PATH)
+    matches = glob.glob("assets/Schichtplanung_Ausbau*Los_1.html")
+    if not matches:
+        raise RuntimeError("Portable HTML file not found.")
+    html_path = matches[0]
+    snapshot = read_embedded_snapshot(html_path)
+    print(
+        "Snapshot counts:",
+        "kw=",
+        len(snapshot.get("kwList", [])),
+        "workItems=",
+        len(snapshot.get("workItems", {})),
+        "mitarbeiter=",
+        len(((snapshot.get("tables") or {}).get("mitarbeiter")) or []),
+    )
     doc_name = find_project_doc_name(token, TARGET_PROJECT_NAME)
     update_fields = build_update_fields(snapshot)
     patch_project_document(token, doc_name, update_fields)

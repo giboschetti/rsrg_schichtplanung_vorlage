@@ -96,7 +96,7 @@ function normalizeSnapshot(snapshot) {
 
 function extractSnapshotFromLocalStorage() {
   const snapshot = normalizeSnapshot({
-    savedAt: new Date().toISOString(),
+    savedAt: state.projectDoc?.plannerData?.savedAt || "",
     stammdaten: parseJsonSafe(localStorage.getItem("stammdaten"), DEFAULT_SNAPSHOT.stammdaten),
     shiftConfig: parseJsonSafe(localStorage.getItem("shiftConfig"), DEFAULT_SNAPSHOT.shiftConfig),
     kwList: parseJsonSafe(localStorage.getItem("kwList"), []),
@@ -104,6 +104,23 @@ function extractSnapshotFromLocalStorage() {
     workItems: parseJsonSafe(localStorage.getItem("workItems"), {}),
   });
   return snapshot;
+}
+
+function snapshotHash(snapshot) {
+  const normalized = normalizeSnapshot(snapshot);
+  // Avoid autosave loops from transient timestamp differences.
+  normalized.savedAt = "";
+  return JSON.stringify(normalized);
+}
+
+function snapshotLooksEmpty(snapshot) {
+  const normalized = normalizeSnapshot(snapshot);
+  const hasKw = (normalized.kwList || []).length > 0;
+  const hasMitarbeiter = ((normalized.tables || {}).mitarbeiter || []).length > 0;
+  const hasWorkItems = Object.keys(normalized.workItems || {}).length > 0;
+  const hasStammdaten =
+    Object.values(normalized.stammdaten || {}).some((v) => String(v || "").trim() !== "");
+  return !hasKw && !hasMitarbeiter && !hasWorkItems && !hasStammdaten;
 }
 
 function snapshotFromProjectDoc(projectDoc) {
@@ -150,7 +167,7 @@ function writeSnapshotToBootstrap(snapshot) {
 
 function needsBootstrapReload(projectId, snapshot) {
   const key = `${BOOTSTRAP_SESSION_KEY_PREFIX}${projectId}`;
-  const hash = JSON.stringify(normalizeSnapshot(snapshot));
+  const hash = snapshotHash(snapshot);
   const previous = sessionStorage.getItem(key);
   if (previous === hash) return false;
   sessionStorage.setItem(key, hash);
@@ -206,15 +223,26 @@ async function persistNow() {
       window.flushOpenSDPTables();
     }
     const snapshot = extractSnapshotFromLocalStorage();
-    const hash = JSON.stringify(snapshot);
+    const hash = snapshotHash(snapshot);
     if (hash === state.lastSnapshotHash) {
       setCloudState("Alles gespeichert");
       return;
     }
 
+    const existingSnapshot = normalizeSnapshot(state.projectDoc?.plannerData || {});
+    if (snapshotLooksEmpty(snapshot) && !snapshotLooksEmpty(existingSnapshot)) {
+      // Safety net: do not overwrite non-empty cloud data with accidental empty local state.
+      writeSnapshotToBootstrap(existingSnapshot);
+      state.lastSnapshotHash = snapshotHash(existingSnapshot);
+      setCloudState("Leeren Stand verworfen, Cloud-Daten wiederhergestellt");
+      return;
+    }
+
+    snapshot.savedAt = new Date().toISOString();
+
     const payload = toFirestoreProjectPayload(snapshot, state.projectDoc);
     await saveProjectData(state.projectId, payload);
-    state.lastSnapshotHash = hash;
+    state.lastSnapshotHash = snapshotHash(snapshot);
     state.projectDoc = { ...(state.projectDoc || {}), ...payload };
     setCloudState("Gespeichert");
   } catch (error) {
@@ -239,7 +267,7 @@ function startAutosaveWatcher() {
   state.autosaveStarted = true;
   setInterval(() => {
     const snapshot = extractSnapshotFromLocalStorage();
-    const hash = JSON.stringify(snapshot);
+    const hash = snapshotHash(snapshot);
     if (hash !== state.lastSnapshotHash) {
       queueAutosave();
     }
@@ -270,7 +298,7 @@ async function loadProjectForUser(user, projectId) {
     window.location.reload();
     return false;
   }
-  state.lastSnapshotHash = JSON.stringify(normalizeSnapshot(snapshot));
+  state.lastSnapshotHash = snapshotHash(snapshot);
   setCloudState("Projekt geladen");
   return true;
 }

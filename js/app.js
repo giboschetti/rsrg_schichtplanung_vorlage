@@ -2151,6 +2151,9 @@ async function buildStandaloneHtml(snapshot) {
 // ─── Load from Embedded Data ──────────────────────────────────────────────────
 
 function loadFromEmbeddedData() {
+  // In hosted multi-file mode, keep runtime/localStorage state from Firebase bootstrap.
+  // Embedded savedData should only hydrate true standalone exports.
+  if (!isStandaloneDocument()) return;
   const el  = document.getElementById('savedData');
   if (!el) return;
   const raw = el.textContent.trim();
