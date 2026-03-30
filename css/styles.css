@@ -679,3 +679,80 @@
       border-radius: 10px;
     }
     .sdp-count.empty { background: #DDD8CE; color: #888; }
+
+    .hidden { display: none !important; }
+
+    /* ── Dashboard ─────────────────────────────────────────────────────── */
+    .dashboard-main {
+      max-width: 1100px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .dashboard-create-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .dashboard-input {
+      flex: 1 1 340px;
+      min-height: 36px;
+      border: 1px solid var(--border);
+      padding: 0 10px;
+      font-family: var(--font-s);
+      font-size: 13px;
+      background: #fff;
+    }
+
+    .dashboard-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(255, 99, 0, 0.18);
+    }
+
+    .dashboard-status {
+      min-height: 20px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .dashboard-status-error {
+      color: var(--rs-red);
+      font-weight: 600;
+    }
+
+    .projects-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .project-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 10px 12px;
+    }
+
+    .project-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .project-meta strong {
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .project-meta span {
+      color: var(--text-muted);
+      font-size: 11px;
+    }

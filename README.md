@@ -1,23 +1,32 @@
 # RSRG Schichtplanung — Vorlage
 
-Offline-fähige **Schichtplanung** als statische Web-App (Tabulator, Timeline, Export XLSX/PDF).  
-Dieses Repository enthält den **Quellcode in mehreren Dateien**; die Arbeitskopie mit Projektdaten ist weiterhin **eine einzelne HTML-Datei**.
+Web-basierte **Schichtplanung** mit Firebase Authentication + Firestore für mehrere Projekte.
 
 ## Struktur
 
 | Pfad | Inhalt |
 |------|--------|
-| `index.html` | Shell, eingebetteter leerer Daten-Block `#savedData` |
+| `index.html` | Dashboard (Login, Projektliste, Projekt erstellen) |
+| `project.html` | Planungs-Workspace (bestehende UI/Logik inkl. Bulk-Add) |
 | `css/styles.css` | Layout & Komponenten |
-| `js/app.js` | Anwendungslogik |
+| `js/app.js` | Bestehende Planungslogik (UI, Timeline, Bulk-Add, Export, lokale Snapshot-Logik) |
+| `js/firebase-init.js` | Firebase App/Auth/Firestore Initialisierung |
+| `js/auth.js` | Google Auth + Auth State |
+| `js/firestore-service.js` | Firestore CRUD für Projekte |
+| `js/dashboard.js` | Dashboard-Interaktionen |
+| `js/project.js` | Projektladen/-speichern (Firestore ↔ bestehende Planner-Daten) |
+| `firestore.rules` | Empfohlene Start-Regeln (Single-Owner-Projekte) |
 | `_build_from_monolith.py` | Optional: erneute Aufteilung aus `../schichtplanung.html` |
 
 ## Nutzung
 
-1. **Entwicklung / Team-Vorlage:** Repository klonen oder ZIP laden, `index.html` über einen **lokalen HTTP-Server** oder **GitHub Pages** öffnen (nicht alle Browser erlauben `fetch` zu `css`/`js` von `file://`).
-2. **Einzeldatei für die Baustelle:** In der App **„Datei speichern“** wählen — es wird eine **eine HTML-Datei** erzeugt, in der Styles, Skript und Daten eingebettet sind (wie bisher portabel per E-Mail/SharePoint).
+1. `index.html` über lokalen HTTP-Server oder Hosting öffnen.
+2. Mit Google anmelden.
+3. Projekt erstellen oder bestehendes Projekt öffnen.
+4. Planung in `project.html` bearbeiten (Autosave + manuelles Cloud-Speichern).
+5. Optional weiterhin „Datei speichern“ / XLSX / PDF aus dem Planner verwenden.
 
-> **Hinweis:** Speichern als Einzeldatei aus dem Multi-File-Setup setzt voraus, dass `css/styles.css` und `js/app.js` per `fetch` erreichbar sind (z. B. `https://…` auf GitHub Pages oder `http://localhost:…`).
+> **Hinweis:** Standalone-HTML-Export bleibt kompatibel und arbeitet weiterhin auf Basis der bestehenden Planungslogik.
 
 ## GitHub Pages
 

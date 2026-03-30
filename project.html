@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="de"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schichtplanung Projekt</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <!-- Fallbacks: Corporate E ≈ Überschriften (Barlow Condensed), Corporate S ≈ Fließtext (DM Sans). Eigene WOFF2 hier einbinden: @font-face für "Corporate E" / "Corporate S". -->
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&amp;family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+
+
+  <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  
+</head>
+<body>
+
+<!-- ── App Header ──────────────────────────────────────────────────────── -->
+<div class="app-header">
+  <div class="app-logo">
+    <img src="https://raw.githubusercontent.com/giboschetti/rsrg_schichtplanung_vorlage/main/assets/logo-rhomberg-sersa.jpg"
+         alt="RSRG" height="36" style="display:block;object-fit:contain;"
+         onerror="this.style.display='none';document.getElementById('logo-fallback').style.display='flex'">
+    <div id="logo-fallback" class="logo-mark" style="display:none;">SP</div>
+    <div class="header-divider"></div>
+    <div class="app-logo-text">
+      <h1>Schichtplanung</h1>
+      <div class="sub">Baustellenmanagement</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a id="btnBackToDashboard" class="btn btn-ghost" href="index.html" style="text-decoration:none;">← Projekte</a>
+    <span class="header-proj" id="headerProjName"></span>
+    <span class="header-proj" id="cloudSaveState"></span>
+    <button id="btnCloudSaveNow" class="btn btn-ghost" type="button">Cloud speichern</button>
+    <button id="btnSignOutProject" class="btn btn-ghost" type="button">Abmelden</button>
+    <button id="btnSave" class="btn btn-save dirty" onclick="saveToFile()" title="Datei mit allen Daten speichern und herunterladen">
+      <span class="save-dot"></span>💾 Speichern
+    </button>
+    <button class="btn btn-ghost" onclick="exportAllXLSX()">↓ XLSX</button>
+    <button class="btn btn-ghost" onclick="exportAllPDF()">↓ PDF</button>
+    <button class="btn btn-danger" onclick="clearAllData()">✕ Reset</button>
+  </div>
+</div>
+
+<!-- ── Tab Bar ─────────────────────────────────────────────────────────── -->
+<div class="tab-bar" id="tabBar">
+  <div class="tab" data-page="stammdaten" onclick="switchTab('stammdaten')">
+    <span>Stammdaten</span>
+  </div>
+  <div class="tab active" data-page="uebersicht" onclick="switchTab('uebersicht')">
+    <span>Übersicht</span>
+  </div>
+</div>
+
+<!-- ── Pages ───────────────────────────────────────────────────────────── -->
+<div id="pagesContainer">
+
+  <!-- PAGE 1: Stammdaten -->
+  <div class="page" id="page-stammdaten">
+    <div class="page-hdr">
+      <div class="page-title">Stammdaten</div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-hdr" onclick="toggleSection(this)">
+        <span>Projektinformationen</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <div class="sd-grid">
+          <div class="form-group">
+            <label>Projektname</label>
+            <input type="text" id="sd-projektname" oninput="saveStammdaten(); updateHeaderProj()">
+          </div>
+          <div class="form-group">
+            <label>Projektnummer</label>
+            <input type="text" id="sd-projektnummer" oninput="saveStammdaten()">
+          </div>
+          <div class="form-group">
+            <label>Auftraggeber</label>
+            <input type="text" id="sd-auftraggeber" oninput="saveStammdaten()">
+          </div>
+          <div class="form-group">
+            <label>Bauleiter</label>
+            <input type="text" id="sd-bauleiter" oninput="saveStammdaten()">
+          </div>
+          <div class="form-group">
+            <label>Polier</label>
+            <input type="text" id="sd-polier" oninput="saveStammdaten()">
+          </div>
+          <div class="form-group">
+            <label>Standort / Adresse</label>
+            <input type="text" id="sd-standort" oninput="saveStammdaten()">
+          </div>
+          <div class="form-group">
+            <label>Baubeginn</label>
+            <input type="date" id="sd-baubeginn" oninput="saveStammdaten()">
+          </div>
+          <div class="form-group">
+            <label>Bauende (geplant)</label>
+            <input type="date" id="sd-bauende" oninput="saveStammdaten()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schichtzeiten -->
+    <div class="section-card">
+      <div class="section-hdr" onclick="toggleSection(this)">
+        <span>Schichtzeiten</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <div class="sd-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+          <div class="form-group">
+            <label>Tag-Schicht — Von</label>
+            <input type="time" id="sh-tag-von" value="07:00" oninput="saveShiftConfig()">
+          </div>
+          <div class="form-group">
+            <label>Tag-Schicht — Bis</label>
+            <input type="time" id="sh-tag-bis" value="19:00" oninput="saveShiftConfig()">
+          </div>
+          <div class="form-group">
+            <label>Nacht-Schicht — Von</label>
+            <input type="time" id="sh-nacht-von" value="19:00" oninput="saveShiftConfig()">
+          </div>
+          <div class="form-group">
+            <label>Nacht-Schicht — Bis</label>
+            <input type="time" id="sh-nacht-bis" value="07:00" oninput="saveShiftConfig()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-hdr" onclick="toggleSection(this)">
+        <span>Mitarbeiterliste</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        <div id="table-mitarbeiter" class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: auto; max-height: 380px;"></div>
+        <div class="tbl-toolbar">
+          <button class="btn btn-add" onclick="addRow('mitarbeiter')">+ Zeile</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 2: Übersicht -->
+  <div class="page active" id="page-uebersicht">
+    <!-- KW Management -->
+    <div class="section-card">
+      <div class="section-hdr collapsed" onclick="toggleSection(this)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span>Kalenderwochen</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn btn-accent" style="height:26px;padding:0 12px;font-size:11px" onclick="event.stopPropagation();openAddKWModal()">+ KW hinzufügen</button>
+          <span class="chevron">▼</span>
+        </div>
+      </div>
+      <div class="section-body collapsed">
+                <div id="kwListContainer"></div>
+      </div>
+    </div>
+
+    <!-- Timeline controls -->
+    <div class="timeline-bar">
+      <div class="tl-left">
+        <div class="zoom-group">
+          <button class="zoom-btn active" data-zoom="shifts">Schichten</button>
+        </div>
+        <span class="tl-filter-lbl">Filter:</span>
+        <button class="filter-pill active" data-grp="tasks" onclick="toggleTLFilter('tasks',this)">Tätigkeiten</button>
+        <button class="filter-pill active" data-grp="personal" onclick="toggleTLFilter('personal',this)">Personal</button>
+        <button class="filter-pill active" data-grp="inventar" onclick="toggleTLFilter('inventar',this)">Inventar</button>
+        <button class="filter-pill active" data-grp="material" onclick="toggleTLFilter('material',this)">Material</button>
+        <button class="filter-pill active" data-grp="fremdleistung" onclick="toggleTLFilter('fremdleistung',this)">Fremdleistung</button>
+      </div>
+      <div class="tl-right">
+        <button class="btn btn-accent" style="height:26px;padding:0 12px;font-size:11px;margin-right:10px" onclick="openBulkAddModal()">+ Mehrfach Ressourcen</button>
+        <span style="font-size:10px;color:var(--text-muted);">Klick Zelle → einzelne Ressource, Klick Spaltenkopf → ganze Schicht · <strong>Strg+C</strong> / <strong>Strg+V</strong></span>
+      </div>
+    </div>
+
+    <!-- Timeline grid -->
+    <div class="timeline-wrapper" id="timelineWrapper"></div>
+
+    <!-- Shift Detail Panel -->
+    <div class="sdp-outer" id="shiftDetailPanel" style="display: none;">
+      <div class="sdp-hdr">
+        <div class="sdp-hdr-left">
+          <div class="sdp-title" id="sdp-title">KW 15 / 2026  —  Mo 6.Apr  —  Tag (07:00 – 19:00)</div>
+          <div class="sdp-meta" id="sdp-meta">10 Einträge total</div>
+        </div>
+        <button class="sdp-close" onclick="closeSDP()" title="Schliessen">×</button>
+      </div>
+      <div class="sdp-body">
+        <div class="sdp-sections">
+
+          <!-- Tätigkeiten -->
+          <div class="sdp-section" data-grp="tasks">
+            <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
+              <div class="sdp-section-left">
+                <span>Tätigkeiten</span>
+                <span class="sdp-count" id="sdp-count-tasks">3</span>
+              </div>
+              <span class="chevron">▼</span>
+            </div>
+            <div class="sdp-section-body collapsed">
+              <div id="sdp-tbl-tasks" class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: auto; max-height: 260px;"></div>
+              <div class="tbl-toolbar">
+                <button class="btn btn-add" onclick="addSDPRow('tasks')">+ Zeile</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Personal -->
+          <div class="sdp-section" data-grp="personal">
+            <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
+              <div class="sdp-section-left">
+                <span>Personal</span>
+                <span class="sdp-count" id="sdp-count-personal">3</span>
+              </div>
+              <span class="chevron">▼</span>
+            </div>
+            <div class="sdp-section-body collapsed">
+              <div id="sdp-tbl-personal" class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: auto; max-height: 260px;"></div>
+              <div class="tbl-toolbar">
+                <button class="btn btn-add" onclick="addSDPRow('personal')">+ Zeile</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Inventar -->
+          <div class="sdp-section" data-grp="inventar">
+            <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
+              <div class="sdp-section-left">
+                <span>Inventar</span>
+                <span class="sdp-count" id="sdp-count-inventar">3</span>
+              </div>
+              <span class="chevron">▼</span>
+            </div>
+            <div class="sdp-section-body collapsed">
+              <div id="sdp-tbl-inventar" class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: auto; max-height: 260px;"></div>
+              <div class="tbl-toolbar">
+                <button class="btn btn-add" onclick="addSDPRow('inventar')">+ Zeile</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Material -->
+          <div class="sdp-section" data-grp="material">
+            <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
+              <div class="sdp-section-left">
+                <span>Material</span>
+                <span class="sdp-count" id="sdp-count-material">1</span>
+              </div>
+              <span class="chevron">▼</span>
+            </div>
+            <div class="sdp-section-body collapsed">
+              <div id="sdp-tbl-material" class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: auto; max-height: 260px;"></div>
+              <div class="tbl-toolbar">
+                <button class="btn btn-add" onclick="addSDPRow('material')">+ Zeile</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fremdleistung -->
+          <div class="sdp-section" data-grp="fremdleistung">
+            <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
+              <div class="sdp-section-left">
+                <span>Fremdleistung</span>
+                <span class="sdp-count empty" id="sdp-count-fremdleistung">0</span>
+              </div>
+              <span class="chevron">▼</span>
+            </div>
+            <div class="sdp-section-body collapsed">
+              <div id="sdp-tbl-fremdleistung" class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: auto; max-height: 260px;"></div>
+              <div class="tbl-toolbar">
+                <button class="btn btn-add" onclick="addSDPRow('fremdleistung')">+ Zeile</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end pagesContainer -->
+
+<!-- ── Bulk Add Resources Modal ───────────────────────────────────────── -->
+<div class="modal-overlay" id="bulkAddModal">
+  <div class="modal modal-bulk-add">
+    <h3>Mehrfach Ressourcen hinzufügen</h3>
+    <div class="form-group">
+      <label>Ressourcen-Typ</label>
+      <select id="bulkAddType" onchange="bulkAddTypeChanged()">
+        <option value="personal">Personal</option>
+        <option value="material">Material</option>
+        <option value="inventar">Inventar</option>
+        <option value="tasks">Tätigkeiten</option>
+        <option value="fremdleistung">Fremdleistung</option>
+      </select>
+    </div>
+    <div id="bulkAddFields" class="bulk-add-fields">
+      <div class="bulk-add-type-panel" data-type="personal">
+        <div class="form-group"><label>Name</label><input type="text" id="bulk-personal-name" placeholder="z.B. Max Mustermann"></div>
+        <div class="form-group"><label>Funktion</label><select id="bulk-personal-funktion"><option value="">—</option><option value="Baugruppe">Baugruppe</option><option value="Sicherheit">Sicherheit</option><option value="Maschinist">Maschinist</option><option value="Polier">Polier</option><option value="Bauleiter">Bauleiter</option><option value="Fremdfirma">Fremdfirma</option></select></div>
+        <div class="form-group"><label>Status</label><select id="bulk-personal-status"><option value="">—</option><option value="Planung">Planung</option><option value="Bestellt">Bestellt</option><option value="Bestätigt">Bestätigt</option></select></div>
+        <div class="form-group"><label>Bemerkung</label><input type="text" id="bulk-personal-bemerkung"></div>
+      </div>
+      <div class="bulk-add-type-panel" data-type="material" style="display:none">
+        <div class="form-group"><label>Material</label><input type="text" id="bulk-material-material" placeholder="z.B. Beton"></div>
+        <div class="form-group"><label>Menge</label><input type="number" id="bulk-material-menge" placeholder="0" step="any"></div>
+        <div class="form-group"><label>Einheit</label><select id="bulk-material-einheit"><option value="">—</option><option value="m">m</option><option value="m²">m²</option><option value="m³">m³</option><option value="kg">kg</option><option value="t">t</option><option value="Stk">Stk</option><option value="Psch">Psch</option><option value="h">h</option><option value="l">l</option><option value="lfm">lfm</option></select></div>
+        <div class="form-group"><label>Status</label><select id="bulk-material-status"><option value="">—</option><option value="Planung">Planung</option><option value="Bestellt">Bestellt</option><option value="Bestätigt">Bestätigt</option></select></div>
+        <div class="form-group"><label>Bemerkung</label><input type="text" id="bulk-material-bemerkung"></div>
+      </div>
+      <div class="bulk-add-type-panel" data-type="inventar" style="display:none">
+        <div class="form-group"><label>Gerät / Inventar</label><input type="text" id="bulk-inventar-geraet" placeholder="z.B. Bagger"></div>
+        <div class="form-group"><label>Anzahl</label><input type="number" id="bulk-inventar-anzahl" placeholder="0" min="0"></div>
+        <div class="form-group"><label>Status</label><select id="bulk-inventar-status"><option value="">—</option><option value="Planung">Planung</option><option value="Bestellt">Bestellt</option><option value="Bestätigt">Bestätigt</option></select></div>
+        <div class="form-group"><label>Bemerkung</label><input type="text" id="bulk-inventar-bemerkung"></div>
+      </div>
+      <div class="bulk-add-type-panel" data-type="tasks" style="display:none">
+        <div class="form-group"><label>Tätigkeit</label><input type="text" id="bulk-tasks-name" placeholder="z.B. Aushub"></div>
+        <div class="form-group"><label>Beschreibung</label><textarea id="bulk-tasks-beschreibung" rows="3" placeholder="Ausführliche Beschreibung der Tätigkeit"></textarea></div>
+        <div class="form-group"><label>Bereich / Ort</label><input type="text" id="bulk-tasks-location"></div>
+        <div class="form-group"><label>Status</label><select id="bulk-tasks-status"><option value="">—</option><option value="Planung">Planung</option><option value="Bestellt">Bestellt</option><option value="Bestätigt">Bestätigt</option></select></div>
+        <div class="form-group"><label>Notizen</label><input type="text" id="bulk-tasks-notes"></div>
+      </div>
+      <div class="bulk-add-type-panel" data-type="fremdleistung" style="display:none">
+        <div class="form-group"><label>Firma</label><input type="text" id="bulk-fremdleistung-firma" placeholder="z.B. Firma XY"></div>
+        <div class="form-group"><label>Leistung</label><input type="text" id="bulk-fremdleistung-leistung" placeholder="z.B. Kranarbeiten"></div>
+        <div class="form-group"><label>Status</label><select id="bulk-fremdleistung-status"><option value="">—</option><option value="Planung">Planung</option><option value="Bestellt">Bestellt</option><option value="Bestätigt">Bestätigt</option></select></div>
+        <div class="form-group"><label>Bemerkung</label><input type="text" id="bulk-fremdleistung-bemerkung"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Zeitraum</label>
+      <div class="bulk-add-date-range">
+        <input type="date" id="bulkAddFrom"> – <input type="date" id="bulkAddTo">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Schichten</label>
+      <div class="bulk-add-shifts">
+        <label class="bulk-add-check"><input type="checkbox" id="bulkAddShiftTag" checked> Tag</label>
+        <label class="bulk-add-check"><input type="checkbox" id="bulkAddShiftNacht" checked> Nacht</label>
+        <label class="bulk-add-check"><input type="checkbox" id="bulkAddDaySa" checked> Samstag</label>
+        <label class="bulk-add-check"><input type="checkbox" id="bulkAddDaySo" checked> Sonntag</label>
+      </div>
+    </div>
+    <div class="bulk-add-preview" id="bulkAddPreview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeBulkAddModal()">Abbrechen</button>
+      <button class="btn btn-accent" onclick="confirmBulkAdd()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add KW Modal ────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="addKWModal">
+  <div class="modal">
+    <h3>Kalenderwoche hinzufügen</h3>
+    <div class="form-group">
+      <label>Kalenderwoche (Nummer)</label>
+      <input type="number" id="kwNum" min="1" max="53" placeholder="z.B. 12">
+    </div>
+    <div class="form-group">
+      <label>Jahr</label>
+      <input type="number" id="kwYear" min="2020" max="2040">
+    </div>
+    <div class="form-group">
+      <label>Datum von (Mo, optional)</label>
+      <input type="date" id="kwFrom">
+    </div>
+    <div class="form-group">
+      <label>Datum bis (So, optional)</label>
+      <input type="date" id="kwTo">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-accent" onclick="confirmAddKW()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ───────────────────────────────────────────────────────────── -->
+<div class="toast" id="toast">Schicht eingefügt</div>
+
+<!-- Embedded snapshot — replaced on every "Datei speichern". Do not edit manually. -->
+<script id="savedData" type="application/json">{"savedAt":"","stammdaten":{"projektname":"","projektnummer":"","auftraggeber":"","bauleiter":"","polier":"","standort":"","baubeginn":"","bauende":""},"shiftConfig":{"tag":{"von":"07:00","bis":"19:00"},"nacht":{"von":"19:00","bis":"07:00"}},"kwList":[],"tables":{"mitarbeiter":[]},"workItems":{}}</script>
+
+<script type="module" src="js/project.js"></script>
+<script src="js/app.js"></script>
+
+</body></html>
