@@ -85,7 +85,8 @@ async function refreshProjects() {
     setStatus("");
   } catch (error) {
     console.error("Projektliste konnte nicht geladen werden.", error);
-    setStatus("Projektliste konnte nicht geladen werden.", true);
+    const details = error?.message ? ` (${error.message})` : "";
+    setStatus(`Projektliste konnte nicht geladen werden.${details}`, true);
   }
 }
 

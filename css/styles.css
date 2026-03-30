@@ -102,7 +102,17 @@
       width: 1px; height: 28px; background: var(--border); margin: 0 6px;
     }
 
-    .header-actions { display: flex; gap: 6px; align-items: center; }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+
+    .header-action-group {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .header-action-group + .header-action-group {
+      border-left: 1px solid var(--border);
+      padding-left: 10px;
+    }
 
     .header-actions .btn-ghost {
       color: var(--text);
@@ -115,7 +125,7 @@
 
     .header-proj {
       font-size: 11px; color: var(--text-muted);
-      margin-right: 8px; max-width: 260px;
+      margin-right: 4px; max-width: 260px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       font-style: italic;
     }

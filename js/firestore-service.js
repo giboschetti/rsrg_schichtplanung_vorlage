@@ -66,16 +66,38 @@ export async function createProject(ownerId, name) {
 }
 
 export async function listProjects(ownerId) {
-  const byMembershipQuery = query(projectsCollection(), where("memberIds", "array-contains", ownerId));
-  const byOwnerQuery = query(projectsCollection(), where("ownerId", "==", ownerId));
-  const [membershipSnap, ownerSnap] = await Promise.all([getDocs(byMembershipQuery), getDocs(byOwnerQuery)]);
   const merged = new Map();
-  membershipSnap.docs.forEach((projectDoc) => {
-    merged.set(projectDoc.id, { id: projectDoc.id, ...projectDoc.data() });
-  });
-  ownerSnap.docs.forEach((projectDoc) => {
-    merged.set(projectDoc.id, { id: projectDoc.id, ...projectDoc.data() });
-  });
+  let hadSuccess = false;
+  let lastError = null;
+
+  try {
+    const ownerSnap = await getDocs(query(projectsCollection(), where("ownerId", "==", ownerId)));
+    ownerSnap.docs.forEach((projectDoc) => {
+      merged.set(projectDoc.id, { id: projectDoc.id, ...projectDoc.data() });
+    });
+    hadSuccess = true;
+  } catch (error) {
+    lastError = error;
+    console.warn("Owner project query failed:", error);
+  }
+
+  try {
+    const membershipSnap = await getDocs(
+      query(projectsCollection(), where("memberIds", "array-contains", ownerId))
+    );
+    membershipSnap.docs.forEach((projectDoc) => {
+      merged.set(projectDoc.id, { id: projectDoc.id, ...projectDoc.data() });
+    });
+    hadSuccess = true;
+  } catch (error) {
+    lastError = error;
+    console.warn("Membership project query failed:", error);
+  }
+
+  if (!hadSuccess && lastError) {
+    throw lastError;
+  }
+
   return Array.from(merged.values());
 }
 

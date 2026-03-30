@@ -34,17 +34,20 @@
     </div>
   </div>
   <div class="header-actions">
-    <a id="btnBackToDashboard" class="btn btn-ghost" href="index.html" style="text-decoration:none;">← Projekte</a>
-    <span class="header-proj" id="headerProjName"></span>
-    <span class="header-proj" id="cloudSaveState"></span>
-    <button id="btnCloudSaveNow" class="btn btn-ghost" type="button">Cloud speichern</button>
-    <button id="btnSignOutProject" class="btn btn-ghost" type="button">Abmelden</button>
-    <button id="btnSave" class="btn btn-save dirty" onclick="saveToFile()" title="Datei mit allen Daten speichern und herunterladen">
-      <span class="save-dot"></span>💾 Speichern
-    </button>
-    <button class="btn btn-ghost" onclick="exportAllXLSX()">↓ XLSX</button>
-    <button class="btn btn-ghost" onclick="exportAllPDF()">↓ PDF</button>
-    <button class="btn btn-danger" onclick="clearAllData()">✕ Reset</button>
+    <div class="header-action-group">
+      <a id="btnBackToDashboard" class="btn btn-ghost" href="index.html" style="text-decoration:none;">← Projekte</a>
+      <button id="btnSignOutProject" class="btn btn-ghost" type="button">Abmelden</button>
+    </div>
+    <div class="header-action-group">
+      <span class="header-proj" id="headerProjName"></span>
+      <span class="header-proj" id="cloudSaveState"></span>
+      <button id="btnSave" class="btn btn-save dirty" onclick="saveToFile()" title="HTML-Datei mit allen Daten exportieren">
+        <span class="save-dot"></span>↓ HTML
+      </button>
+      <button class="btn btn-ghost" onclick="exportAllXLSX()">↓ Excel</button>
+      <button class="btn btn-ghost" onclick="exportAllPDF()">↓ PDF</button>
+      <button class="btn btn-danger" onclick="clearAllData()">✕ Reset</button>
+    </div>
   </div>
 </div>
 

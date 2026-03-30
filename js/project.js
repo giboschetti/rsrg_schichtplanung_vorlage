@@ -42,7 +42,6 @@ const state = {
 
 const ui = {
   cloudSaveState: document.getElementById("cloudSaveState"),
-  btnCloudSaveNow: document.getElementById("btnCloudSaveNow"),
   btnSignOutProject: document.getElementById("btnSignOutProject"),
   btnBackToDashboard: document.getElementById("btnBackToDashboard"),
   memberSelect: document.getElementById("memberSelect"),
@@ -374,9 +373,6 @@ function installDirtyHook() {
 }
 
 function bindUiEvents() {
-  ui.btnCloudSaveNow?.addEventListener("click", () => {
-    persistNow();
-  });
   ui.btnSignOutProject?.addEventListener("click", async () => {
     await signOutCurrentUser();
     window.location.href = "index.html";
