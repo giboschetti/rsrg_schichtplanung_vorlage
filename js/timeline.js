@@ -103,8 +103,7 @@ function buildShiftsHeader(shiftId) {
 
 function buildResRowForShift(g, shiftId) {
   const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
-  // Cat "cards" are implemented via row marker classes (tl-cat-first/last) + CSS.
-  let html = `<tr class="tl-res-row tl-cat-card tl-cat-first tl-cat-last tl-${g.id}-row"><td class="tl-label-td">${g.label}</td>`;
+  let html = `<tr class="tl-res-row"><td class="tl-label-td">${g.label}</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const items = getSection(kw.id, dayIdx, shiftId, g.section);
@@ -121,7 +120,7 @@ function buildTasksRowsForShift(shiftId) {
   const tasksGroup = { id: 'tasks', label: 'Tätigkeiten', section: 'tasks' };
   const phases = getUsedTaskBauphaseBauteile();
 
-  let html = `<tr class="tl-res-row tl-tasks-parent-row tl-cat-card tl-cat-first"><td class="tl-label-td tl-tasks-parent">Tätigkeiten</td>`;
+  let html = `<tr class="tl-res-row tl-tasks-parent-row"><td class="tl-label-td tl-tasks-parent">Tätigkeiten</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
@@ -130,9 +129,8 @@ function buildTasksRowsForShift(shiftId) {
   });
   html += '</tr>';
 
-  phases.forEach((phase, idx) => {
-    const isLast = idx === phases.length - 1;
-    html += `<tr class="tl-res-row tl-tasks-child-row tl-cat-card${isLast ? ' tl-cat-last' : ''}"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(phase)}</td>`;
+  phases.forEach(phase => {
+    html += `<tr class="tl-res-row tl-tasks-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(phase)}</td>`;
     kwList.forEach((kw, ki) => {
       TL_DAYS.forEach((_, dayIdx) => {
         const items = getTaskItemsByBauphaseBauteil(kw.id, dayIdx, shiftId, phase);
@@ -151,7 +149,7 @@ function buildPersonalRowsForShift(shiftId) {
   const personalGroup = { id: 'personal', label: 'Personal', section: 'personal' };
   const functions = getUsedPersonalFunctions();
 
-  let html = `<tr class="tl-res-row tl-personal-parent-row tl-cat-card tl-cat-first"><td class="tl-label-td tl-personal-parent">Personal</td>`;
+  let html = `<tr class="tl-res-row tl-personal-parent-row"><td class="tl-label-td tl-personal-parent">Personal</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
@@ -160,9 +158,8 @@ function buildPersonalRowsForShift(shiftId) {
   });
   html += '</tr>';
 
-  functions.forEach((funktion, idx) => {
-    const isLast = idx === functions.length - 1;
-    html += `<tr class="tl-res-row tl-personal-child-row tl-cat-card${isLast ? ' tl-cat-last' : ''}"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(funktion)}</td>`;
+  functions.forEach(funktion => {
+    html += `<tr class="tl-res-row tl-personal-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(funktion)}</td>`;
     kwList.forEach((kw, ki) => {
       TL_DAYS.forEach((_, dayIdx) => {
         const items = getPersonalItemsByFunction(kw.id, dayIdx, shiftId, funktion);
@@ -268,26 +265,43 @@ function renderTimeline() {
     colgroup += '</colgroup>';
 
     let html = '<div class="tl-dual-grid">';
-    html += '<div class="tl-grid-day"><table class="tl-table tl-table-day" style="table-layout:fixed">' + colgroup;
-    html += buildShiftsHeader('T');
-    html += '<tbody>';
+
+    // Day (Tag) grid
+    html += '<div class="tl-grid-day"><div class="tl-cat-stack">';
+    html += '<div class="tl-timeline-card tl-timeline-header-card">';
+    html += '<table class="tl-table tl-table-day tl-header-table" style="table-layout:fixed">' + colgroup + buildShiftsHeader('T') + '</table>';
+    html += '</div>';
     TL_GROUPS.forEach(g => {
       if (!tlFilter[g.id]) return;
-      if (g.id === 'personal') html += buildPersonalRowsForShift('T');
-      else if (g.id === 'tasks') html += buildTasksRowsForShift('T');
-      else html += buildResRowForShift(g, 'T');
+      let rows = '';
+      if (g.id === 'personal') rows = buildPersonalRowsForShift('T');
+      else if (g.id === 'tasks') rows = buildTasksRowsForShift('T');
+      else rows = buildResRowForShift(g, 'T');
+
+      html += '<div class="tl-timeline-card tl-category-card">';
+      html += '<table class="tl-table tl-table-day tl-cat-table" style="table-layout:fixed">' + colgroup + '<tbody>' + rows + '</tbody></table>';
+      html += '</div>';
     });
-    html += '</tbody></table></div>';
-    html += '<div class="tl-grid-night"><table class="tl-table tl-table-night" style="table-layout:fixed">' + colgroup;
-    html += buildShiftsHeader('N');
-    html += '<tbody>';
+    html += '</div></div>';
+
+    // Night (Nacht) grid
+    html += '<div class="tl-grid-night"><div class="tl-cat-stack">';
+    html += '<div class="tl-timeline-card tl-timeline-header-card">';
+    html += '<table class="tl-table tl-table-night tl-header-table" style="table-layout:fixed">' + colgroup + buildShiftsHeader('N') + '</table>';
+    html += '</div>';
     TL_GROUPS.forEach(g => {
       if (!tlFilter[g.id]) return;
-      if (g.id === 'personal') html += buildPersonalRowsForShift('N');
-      else if (g.id === 'tasks') html += buildTasksRowsForShift('N');
-      else html += buildResRowForShift(g, 'N');
+      let rows = '';
+      if (g.id === 'personal') rows = buildPersonalRowsForShift('N');
+      else if (g.id === 'tasks') rows = buildTasksRowsForShift('N');
+      else rows = buildResRowForShift(g, 'N');
+
+      html += '<div class="tl-timeline-card tl-category-card">';
+      html += '<table class="tl-table tl-table-night tl-cat-table" style="table-layout:fixed">' + colgroup + '<tbody>' + rows + '</tbody></table>';
+      html += '</div>';
     });
-    html += '</tbody></table></div></div>';
+    html += '</div></div></div>';
+
     wrapper.innerHTML = html;
   } else {
     let html = '<table class="tl-table"><thead>';

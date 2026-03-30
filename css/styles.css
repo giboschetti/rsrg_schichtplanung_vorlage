@@ -526,17 +526,17 @@
       gap: 18px;
     }
 
-    /* Tag / Nacht tables are styled as light cards for better separation */
+    /* Shift tables are embedded in "cards" (tl-timeline-card) */
     .tl-table-day,
     .tl-table-night {
       border-collapse: collapse;
       width: max-content;
       font-size: 11px;
-      background: #ffffff;
-      border-radius: 10px;
-      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-      border: 1px solid rgba(148, 163, 184, 0.45);
-      overflow: hidden;
+      background: transparent;
+      border-radius: 0;
+      box-shadow: none;
+      border: 0;
+      overflow: visible;
     }
     .tl-kw-th.sh-t { background: #DCEBE0; color: #1B5E3F; }
     .tl-kw-th.sh-n { background: #E2E4F2; color: #3A4580; }
@@ -620,22 +620,31 @@
       background: #F8F4ED;
     }
     
-    /* ── Resource category "cards" ────────────────────────────────────── */
-    /* Implemented purely via row marker classes in `js/timeline.js`. */
-    .tl-cat-card .tl-cell {
-      /* keep the existing "grid cell" look; card effect comes from top/bottom padding */
-      background: white;
+    /* ── Timeline cards (Header + each resource category) ────────────── */
+    .tl-cat-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: flex-start;
+      /* keep the rounded card edges clean around sticky columns */
+      padding: 2px 0;
     }
-    .tl-cat-card.tl-cat-first .tl-cell,
-    .tl-cat-card.tl-cat-first .tl-label-td {
-      /* extra space above the category (card top padding) */
-      border-top: 7px solid var(--bg);
+
+    .tl-timeline-card {
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      overflow: hidden;
     }
-    .tl-cat-card.tl-cat-last .tl-cell,
-    .tl-cat-card.tl-cat-last .tl-label-td {
-      /* extra space below the category (card bottom padding) */
-      border-bottom: 7px solid var(--bg);
+
+    /* Avoid tables expanding to full container width inside flex cards */
+    .tl-timeline-card .tl-table {
+      min-width: max-content;
     }
+
+    /* Ensure the header sticky row looks like part of the card */
+    .tl-timeline-card .tl-table thead { z-index: 25; }
     .tl-label-td.tl-label-td-child {
       padding-left: 22px;
       font-size: 11px;
