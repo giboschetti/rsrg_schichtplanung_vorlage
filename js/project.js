@@ -41,6 +41,7 @@ const ui = {
   btnBackToDashboard: document.getElementById("btnBackToDashboard"),
 };
 const BOOTSTRAP_SESSION_KEY_PREFIX = "sp.bootstrapSnapshotHash.";
+const BOOTSTRAP_RELOADED_PREFIX = "sp.bootstrapReloaded.";
 
 function getProjectIdFromQuery() {
   const params = new URLSearchParams(window.location.search);
@@ -166,11 +167,18 @@ function writeSnapshotToBootstrap(snapshot) {
 }
 
 function needsBootstrapReload(projectId, snapshot) {
+  const reloadKey = `${BOOTSTRAP_RELOADED_PREFIX}${projectId}`;
+  if (sessionStorage.getItem(reloadKey) === "1") return false;
+
   const key = `${BOOTSTRAP_SESSION_KEY_PREFIX}${projectId}`;
   const hash = snapshotHash(snapshot);
   const previous = sessionStorage.getItem(key);
-  if (previous === hash) return false;
+  if (previous === hash) {
+    sessionStorage.setItem(reloadKey, "1");
+    return false;
+  }
   sessionStorage.setItem(key, hash);
+  sessionStorage.setItem(reloadKey, "1");
   return true;
 }
 
