@@ -2013,6 +2013,15 @@ function buildStammdatenPDFPage(doc, y, W, proj) {
     columnStyles: { 0: { cellWidth: 55, fontStyle: 'bold', fillColor: [240, 237, 230] } },
   });
 
+  // Bauphase / Bauteil master list for Tätigkeiten
+  const bauphasen = getBauphaseBauteilOptions();
+  if (bauphasen.length) {
+    y += 4;
+    y = pdfSectionHeading(doc, 'Bauphase / Bauteil', y, W);
+    const bpBody = bauphasen.map(v => [v]);
+    y = pdfTable(doc, [['Eintrag']], bpBody, y, W, { fontSize: 7.5 });
+  }
+
   // Kontaktliste / Mitarbeiter
   if (tables['mitarbeiter']) {
     const mitData = tables['mitarbeiter'].getData().filter(r =>
@@ -2076,25 +2085,52 @@ function buildKWSummaryPage(doc, kw, y, W, proj) {
   const headRowTag  = ['Ressource', ...TL_DAYS.map((_, dayIdx) => tlPdfDayHeader(kw, dayIdx, 'T'))];
   const headRowNacht = ['Ressource', ...TL_DAYS.map((_, dayIdx) => tlPdfDayHeader(kw, dayIdx, 'N'))];
 
-  const grpRowsTag = TL_GROUPS.map(g => {
-    const cells = [g.label];
+  function buildSummaryRow(label, shiftId, getItemsForDay) {
+    const cells = [label];
     TL_DAYS.forEach((_, dayIdx) => {
-      const items = getSection(kw.id, dayIdx, 'T', g.section);
-      const labels = items.map(it => getItemLabel(it, g.section)).filter(l => l && l !== '–').slice(0, 3);
+      const items = getItemsForDay(dayIdx, shiftId);
+      const labels = items.map(it => getItemLabel(it, it._sectionId || 'tasks')).filter(l => l && l !== '–').slice(0, 3);
       cells.push(labels.join('\n') || '–');
     });
     return cells;
-  });
+  }
 
-  const grpRowsNacht = TL_GROUPS.map(g => {
-    const cells = [g.label];
-    TL_DAYS.forEach((_, dayIdx) => {
-      const items = getSection(kw.id, dayIdx, 'N', g.section);
-      const labels = items.map(it => getItemLabel(it, g.section)).filter(l => l && l !== '–').slice(0, 3);
-      cells.push(labels.join('\n') || '–');
+  function withSection(items, sectionId) {
+    return items.map(it => ({ ...it, _sectionId: sectionId }));
+  }
+
+  function buildKWSummaryRowsForShift(shiftId) {
+    const rows = [];
+    TL_GROUPS.forEach(g => {
+      if (g.id === 'personal') {
+        // Parent summary-only row (as in grid)
+        rows.push(buildSummaryRow('Personal', shiftId, () => []));
+        getUsedPersonalFunctions().forEach(funktion => {
+          rows.push(buildSummaryRow('  ↳ ' + funktion, shiftId, dayIdx =>
+            withSection(getPersonalItemsByFunction(kw.id, dayIdx, shiftId, funktion), 'personal')
+          ));
+        });
+        return;
+      }
+      if (g.id === 'tasks') {
+        // Parent summary-only row (as in grid)
+        rows.push(buildSummaryRow('Tätigkeiten', shiftId, () => []));
+        getUsedTaskBauphaseBauteile().forEach(phase => {
+          rows.push(buildSummaryRow('  ↳ ' + phase, shiftId, dayIdx =>
+            withSection(getTaskItemsByBauphaseBauteil(kw.id, dayIdx, shiftId, phase), 'tasks')
+          ));
+        });
+        return;
+      }
+      rows.push(buildSummaryRow(g.label, shiftId, dayIdx =>
+        withSection(getSection(kw.id, dayIdx, shiftId, g.section), g.section)
+      ));
     });
-    return cells;
-  });
+    return rows;
+  }
+
+  const grpRowsTag = buildKWSummaryRowsForShift('T');
+  const grpRowsNacht = buildKWSummaryRowsForShift('N');
 
   y = pdfTable(doc, [headRowTag], grpRowsTag, y, W, pdfTableOpts);
 
@@ -2129,7 +2165,22 @@ function buildShiftDetailPage(doc, kw, dayIdx, shift, y, W, proj) {
   const tasks = (cell.tasks || []).filter(t => t.name || t.beschreibung || t.location);
   if (tasks.length) {
     y = pdfSectionHeading(doc, 'Tätigkeiten', y, W);
-    const body = tasks.map(t => [
+    const orderedPhases = getUsedTaskBauphaseBauteile();
+    const grouped = [];
+    const seen = new Set();
+    orderedPhases.forEach(phase => {
+      const items = tasks.filter(t => normalizeTaskBauphaseBauteil(t?.bauphaseBauteil) === phase);
+      if (!items.length) return;
+      items.forEach(t => grouped.push([phase, t]));
+      seen.add(phase);
+    });
+    tasks.forEach(t => {
+      const phase = normalizeTaskBauphaseBauteil(t?.bauphaseBauteil);
+      if (seen.has(phase)) return;
+      grouped.push([phase, t]);
+    });
+    const body = grouped.map(([phase, t]) => [
+      phase || 'Ohne Bauphase/Bauteil',
       t.name || '–',
       t.beschreibung || '–',
       t.location || '–',
@@ -2137,7 +2188,7 @@ function buildShiftDetailPage(doc, kw, dayIdx, shift, y, W, proj) {
       t.notes || '–',
     ]);
     y = pdfTable(doc,
-      [['Tätigkeit','Beschreibung','Bereich/Ort','Status','Notizen']],
+      [['Bauphase/Bauteil','Tätigkeit','Beschreibung','Bereich/Ort','Status','Notizen']],
       body, y, W, { fontSize: 7.5 });
   }
 
