@@ -40,6 +40,7 @@ const ui = {
   btnSignOutProject: document.getElementById("btnSignOutProject"),
   btnBackToDashboard: document.getElementById("btnBackToDashboard"),
 };
+const BOOTSTRAP_SESSION_KEY_PREFIX = "sp.bootstrapSnapshotHash.";
 
 function getProjectIdFromQuery() {
   const params = new URLSearchParams(window.location.search);
@@ -145,6 +146,15 @@ function writeSnapshotToBootstrap(snapshot) {
   if (savedDataEl) {
     savedDataEl.textContent = JSON.stringify(normalized);
   }
+}
+
+function needsBootstrapReload(projectId, snapshot) {
+  const key = `${BOOTSTRAP_SESSION_KEY_PREFIX}${projectId}`;
+  const hash = JSON.stringify(normalizeSnapshot(snapshot));
+  const previous = sessionStorage.getItem(key);
+  if (previous === hash) return false;
+  sessionStorage.setItem(key, hash);
+  return true;
 }
 
 function toFirestoreProjectPayload(snapshot, existingDoc) {
@@ -255,8 +265,14 @@ async function loadProjectForUser(user, projectId) {
   state.projectDoc = project;
   const snapshot = snapshotFromProjectDoc(project);
   writeSnapshotToBootstrap(snapshot);
+  if (needsBootstrapReload(projectId, snapshot)) {
+    setCloudState("Lade Projektdaten ...");
+    window.location.reload();
+    return false;
+  }
   state.lastSnapshotHash = JSON.stringify(normalizeSnapshot(snapshot));
   setCloudState("Projekt geladen");
+  return true;
 }
 
 function authGuard() {
@@ -275,7 +291,8 @@ function authGuard() {
     state.projectId = projectId;
 
     try {
-      await loadProjectForUser(user, projectId);
+      const ready = await loadProjectForUser(user, projectId);
+      if (!ready) return;
       bindUiEvents();
       startAutosaveWatcher();
     } catch (error) {
