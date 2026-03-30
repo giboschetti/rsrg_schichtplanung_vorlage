@@ -589,6 +589,16 @@
       border-bottom: 1px solid #EEEBE4;
       font-size: 12px; font-weight: 600; /* Corporate S Demi */
     }
+    .tl-personal-parent-row .tl-label-td {
+      font-weight: 700;
+      background: #F8F4ED;
+    }
+    .tl-label-td.tl-label-td-child {
+      padding-left: 22px;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: #FCFAF7;
+    }
 
     .tl-cell {
       border-left: 1px solid #E8E4DC;

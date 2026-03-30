@@ -1050,6 +1050,64 @@ function buildResRowForShift(g, shiftId) {
   return html;
 }
 
+function normalizePersonalFunktion(raw) {
+  const v = String(raw || '').trim();
+  return v || 'Ohne Funktion';
+}
+
+function escapeHtmlText(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function getUsedPersonalFunctions() {
+  const set = new Set();
+  Object.values(workItems).forEach(cell => {
+    const rows = Array.isArray(cell?.personal) ? cell.personal : [];
+    rows.forEach(r => set.add(normalizePersonalFunktion(r?.funktion)));
+  });
+  const ordered = [];
+  SDP_FUNKTION_VALUES.forEach(f => { if (set.has(f)) ordered.push(f); });
+  const extras = Array.from(set).filter(f => !SDP_FUNKTION_VALUES.includes(f)).sort((a, b) => a.localeCompare(b, 'de-CH'));
+  ordered.push(...extras);
+  return ordered;
+}
+
+function getPersonalItemsByFunction(kwId, dayIdx, shift, funktion) {
+  return getSection(kwId, dayIdx, shift, 'personal').filter(r => normalizePersonalFunktion(r?.funktion) === funktion);
+}
+
+function buildPersonalRowsForShift(shiftId) {
+  const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
+  const personalGroup = { id: 'personal', label: 'Personal', section: 'personal' };
+  const functions = getUsedPersonalFunctions();
+
+  // Parent row keeps the complete personal overview.
+  let html = `<tr class="tl-res-row tl-personal-parent-row"><td class="tl-label-td tl-personal-parent">Personal</td>`;
+  kwList.forEach((kw, ki) => {
+    TL_DAYS.forEach((_, dayIdx) => {
+      const items = getSection(kw.id, dayIdx, shiftId, 'personal');
+      const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+      html += buildCell(kw.id, dayIdx, shiftId, personalGroup, items, sh.cls + kwBorder);
+    });
+  });
+  html += '</tr>';
+
+  // Child rows: only functions that actually exist in project data.
+  functions.forEach(funktion => {
+    html += `<tr class="tl-res-row tl-personal-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(funktion)}</td>`;
+    kwList.forEach((kw, ki) => {
+      TL_DAYS.forEach((_, dayIdx) => {
+        const items = getPersonalItemsByFunction(kw.id, dayIdx, shiftId, funktion);
+        const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+        html += buildCell(kw.id, dayIdx, shiftId, personalGroup, items, sh.cls + kwBorder);
+      });
+    });
+    html += '</tr>';
+  });
+
+  return html;
+}
+
 function renderTimeline() {
   const wrapper = document.getElementById('timelineWrapper');
   if (!wrapper) return;
@@ -1074,7 +1132,8 @@ function renderTimeline() {
     html += '<tbody>';
     TL_GROUPS.forEach(g => {
       if (!tlFilter[g.id]) return;
-      html += buildResRowForShift(g, 'T');
+      if (g.id === 'personal') html += buildPersonalRowsForShift('T');
+      else html += buildResRowForShift(g, 'T');
     });
     html += '</tbody></table></div>';
     html += '<div class="tl-grid-night"><table class="tl-table tl-table-night" style="table-layout:fixed">' + colgroup;
@@ -1082,7 +1141,8 @@ function renderTimeline() {
     html += '<tbody>';
     TL_GROUPS.forEach(g => {
       if (!tlFilter[g.id]) return;
-      html += buildResRowForShift(g, 'N');
+      if (g.id === 'personal') html += buildPersonalRowsForShift('N');
+      else html += buildResRowForShift(g, 'N');
     });
     html += '</tbody></table></div></div>';
     wrapper.innerHTML = html;
