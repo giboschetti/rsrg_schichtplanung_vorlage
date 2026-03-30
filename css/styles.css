@@ -506,9 +506,12 @@
     .timeline-wrapper {
       overflow-x: auto;
       border: 1px solid var(--border);
-      background: white;
-      max-height: 460px;
+      background: transparent;
+      /* Let both Tag + Nacht grids fit more comfortably in viewport */
+      max-height: calc(100vh - 220px);
       overflow-y: auto;
+      /* extra breathing room around the dual Tag/Nacht grid */
+      padding: 10px 10px 14px;
     }
     .tl-empty {
       padding: 48px 20px; text-align: center;
@@ -517,10 +520,23 @@
 
     /* Dual grid: day shifts on top, night shifts below */
     .tl-dual-grid {
-      display: flex; flex-direction: column; gap: 12px;
+      display: flex;
+      flex-direction: column;
+      /* more visual separation between Tag / Nacht */
+      gap: 18px;
     }
-    .tl-table-day, .tl-table-night {
-      border-collapse: collapse; width: max-content; font-size: 11px;
+
+    /* Tag / Nacht tables are styled as light cards for better separation */
+    .tl-table-day,
+    .tl-table-night {
+      border-collapse: collapse;
+      width: max-content;
+      font-size: 11px;
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      overflow: hidden;
     }
     .tl-kw-th.sh-t { background: #DCEBE0; color: #1B5E3F; }
     .tl-kw-th.sh-n { background: #E2E4F2; color: #3A4580; }
@@ -574,11 +590,17 @@
     .tl-slot-th.drill.tl-day-hdr .tl-date-sub { display: block; font-size: 8px; font-weight: 600; color: var(--text-muted); margin-top: 1px; }
 
     .tl-group-hdr td {
-      background: #F0EDE6; color: var(--text-muted);
+      background: #F0EDE6;
+      color: var(--text-muted);
       font-family: var(--font-e);
-      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-      padding: 5px 10px;
-      border-top: 2px solid var(--border); border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 7px 10px;
+      /* create a clearer visual gap between resource-type blocks */
+      border-top: 8px solid #ffffff;
+      border-bottom: 1px solid var(--border);
     }
 
     .tl-label-td {
@@ -596,6 +618,23 @@
     .tl-tasks-parent-row .tl-label-td {
       font-weight: 700;
       background: #F8F4ED;
+    }
+    
+    /* ── Resource category "cards" ────────────────────────────────────── */
+    /* Implemented purely via row marker classes in `js/timeline.js`. */
+    .tl-cat-card .tl-cell {
+      /* keep the existing "grid cell" look; card effect comes from top/bottom padding */
+      background: white;
+    }
+    .tl-cat-card.tl-cat-first .tl-cell,
+    .tl-cat-card.tl-cat-first .tl-label-td {
+      /* extra space above the category (card top padding) */
+      border-top: 7px solid var(--bg);
+    }
+    .tl-cat-card.tl-cat-last .tl-cell,
+    .tl-cat-card.tl-cat-last .tl-label-td {
+      /* extra space below the category (card bottom padding) */
+      border-bottom: 7px solid var(--bg);
     }
     .tl-label-td.tl-label-td-child {
       padding-left: 22px;

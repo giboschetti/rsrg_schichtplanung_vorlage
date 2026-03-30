@@ -103,7 +103,8 @@ function buildShiftsHeader(shiftId) {
 
 function buildResRowForShift(g, shiftId) {
   const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
-  let html = `<tr class="tl-res-row"><td class="tl-label-td">${g.label}</td>`;
+  // Cat "cards" are implemented via row marker classes (tl-cat-first/last) + CSS.
+  let html = `<tr class="tl-res-row tl-cat-card tl-cat-first tl-cat-last tl-${g.id}-row"><td class="tl-label-td">${g.label}</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const items = getSection(kw.id, dayIdx, shiftId, g.section);
@@ -120,7 +121,7 @@ function buildTasksRowsForShift(shiftId) {
   const tasksGroup = { id: 'tasks', label: 'Tätigkeiten', section: 'tasks' };
   const phases = getUsedTaskBauphaseBauteile();
 
-  let html = `<tr class="tl-res-row tl-tasks-parent-row"><td class="tl-label-td tl-tasks-parent">Tätigkeiten</td>`;
+  let html = `<tr class="tl-res-row tl-tasks-parent-row tl-cat-card tl-cat-first"><td class="tl-label-td tl-tasks-parent">Tätigkeiten</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
@@ -129,8 +130,9 @@ function buildTasksRowsForShift(shiftId) {
   });
   html += '</tr>';
 
-  phases.forEach(phase => {
-    html += `<tr class="tl-res-row tl-tasks-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(phase)}</td>`;
+  phases.forEach((phase, idx) => {
+    const isLast = idx === phases.length - 1;
+    html += `<tr class="tl-res-row tl-tasks-child-row tl-cat-card${isLast ? ' tl-cat-last' : ''}"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(phase)}</td>`;
     kwList.forEach((kw, ki) => {
       TL_DAYS.forEach((_, dayIdx) => {
         const items = getTaskItemsByBauphaseBauteil(kw.id, dayIdx, shiftId, phase);
@@ -149,7 +151,7 @@ function buildPersonalRowsForShift(shiftId) {
   const personalGroup = { id: 'personal', label: 'Personal', section: 'personal' };
   const functions = getUsedPersonalFunctions();
 
-  let html = `<tr class="tl-res-row tl-personal-parent-row"><td class="tl-label-td tl-personal-parent">Personal</td>`;
+  let html = `<tr class="tl-res-row tl-personal-parent-row tl-cat-card tl-cat-first"><td class="tl-label-td tl-personal-parent">Personal</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
@@ -158,8 +160,9 @@ function buildPersonalRowsForShift(shiftId) {
   });
   html += '</tr>';
 
-  functions.forEach(funktion => {
-    html += `<tr class="tl-res-row tl-personal-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(funktion)}</td>`;
+  functions.forEach((funktion, idx) => {
+    const isLast = idx === functions.length - 1;
+    html += `<tr class="tl-res-row tl-personal-child-row tl-cat-card${isLast ? ' tl-cat-last' : ''}"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(funktion)}</td>`;
     kwList.forEach((kw, ki) => {
       TL_DAYS.forEach((_, dayIdx) => {
         const items = getPersonalItemsByFunction(kw.id, dayIdx, shiftId, funktion);
