@@ -209,13 +209,13 @@ function renderBauphaseBauteileList() {
   const el = document.getElementById('bauphaseList');
   if (!el) return;
   if (!bauphaseBauteile.length) {
-    el.innerHTML = '<div class="project-row"><div class="project-meta"><strong>Keine Bauphase/Bauteile definiert.</strong></div></div>';
+    el.innerHTML = '<div class="project-row bauphase-row"><div class="project-meta"><strong>Keine Bauphase/Bauteile definiert.</strong></div></div>';
     return;
   }
   el.innerHTML = bauphaseBauteile.map((value, idx) => `
-    <div class="project-row">
+    <div class="project-row bauphase-row">
       <div class="project-meta">
-        <input type="text" class="dashboard-input" value="${escAttr(value)}" data-bauphase-idx="${idx}">
+        <input type="text" class="bauphase-input" value="${escAttr(value)}" data-bauphase-idx="${idx}">
       </div>
       <button class="btn btn-danger" type="button" data-bauphase-remove="${idx}">✕</button>
     </div>

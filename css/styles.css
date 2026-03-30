@@ -784,3 +784,24 @@
       color: var(--text-muted);
       font-size: 11px;
     }
+
+    .bauphase-row {
+      padding: 6px 10px;
+      min-height: 44px;
+    }
+
+    .bauphase-input {
+      width: 100%;
+      min-height: 32px;
+      border: 1px solid var(--border);
+      padding: 0 10px;
+      font-family: var(--font-s);
+      font-size: 13px;
+      background: #fff;
+    }
+
+    .bauphase-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(255, 99, 0, 0.18);
+    }
