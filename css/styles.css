@@ -600,6 +600,7 @@
     }
     .tl-cell:hover { background: #FFF8EC !important; }
     .tl-cell.selected { background: #FFF3D4 !important; outline: 2px solid var(--accent); outline-offset: -2px; }
+    .tl-cell.selected-range { background: #FFE8BF !important; outline: 1px dashed var(--accent); outline-offset: -2px; }
     .tl-cell.sh-t { background: #FAFFF9; }
     .tl-cell.sh-n { background: #F8F8FF; }
     .tl-cell.sh-t:hover { background: #F0FFF0 !important; }

@@ -39,6 +39,13 @@ let selectedCell = null; // { kwId, dayIdx, shift }
 let timelineShiftFocus = null;
 /** Fallback, falls navigator.clipboard eingeschränkt ist */
 let shiftClipboardInternal = null;
+/** Range selection state (Schichten-Ansicht). */
+let tlRangeAnchor = null;
+let tlRangeSelection = null;
+/** Einzelne Ressourcenzeile aus SDP per Kontextmenü kopiert. */
+let sdpRowClipboardInternal = null;
+/** Single internal clipboard fallback: always most recent copy action. */
+let lastClipboardInternal = null;
 const sdpTables = {}; // { tasks: Tabulator, personal: Tabulator, ... }
 
 let shiftConfig = { tag: { von: '07:00', bis: '19:00' }, nacht: { von: '19:00', bis: '07:00' } };
@@ -175,6 +182,10 @@ function updateHeaderProj() {
 
 function switchTab(pageId) {
   flushOpenSDPTables();
+  if (pageId !== 'uebersicht') {
+    clearTimelineRangeSelection();
+    applyTimelineRangeSelectionHighlight();
+  }
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('active', t.dataset.page === pageId));
   document.querySelectorAll('.page').forEach(p =>
@@ -525,37 +536,198 @@ function parseShiftClipboardPayload(text) {
   return null;
 }
 
-function applyShiftPayloadToCell(kwId, dayIdx, shift, payload) {
-  flushOpenSDPTables();
+function parseRangeClipboardPayload(text) {
+  if (!text || typeof text !== 'string') return null;
+  const t = text.trim();
+  if (!t.startsWith('{')) return null;
+  try {
+    const o = JSON.parse(t);
+    if (o._schichtplanungRangeV1 && Array.isArray(o.cells)) return o;
+  } catch (_) { return null; }
+  return null;
+}
+
+function tlGroupIndex(grpId) {
+  return TL_GROUPS.findIndex(g => g.id === grpId);
+}
+
+function tlCellCoordsFromElement(el) {
+  if (!el) return null;
+  const kwId = el.dataset.kw;
+  const dayIdx = parseInt(el.dataset.day);
+  const shift = el.dataset.shift;
+  const grp = el.dataset.grp;
+  const kwIdx = kwList.findIndex(k => k.id === kwId);
+  const row = tlGroupIndex(grp);
+  if (!kwId || Number.isNaN(dayIdx) || !shift || kwIdx < 0 || row < 0) return null;
+  return { kwId, dayIdx, shift, grp, kwIdx, col: kwIdx * 7 + dayIdx, row };
+}
+
+function clearTimelineRangeSelection() {
+  tlRangeSelection = null;
+}
+
+function setTimelineRangeSelection(a, b) {
+  if (!a || !b) return false;
+  if (a.shift !== b.shift) return false;
+  tlRangeSelection = {
+    shift: a.shift,
+    rowMin: Math.min(a.row, b.row),
+    rowMax: Math.max(a.row, b.row),
+    colMin: Math.min(a.col, b.col),
+    colMax: Math.max(a.col, b.col),
+  };
+  return true;
+}
+
+function isCoordsInTimelineRange(coords, range) {
+  if (!coords || !range) return false;
+  return (
+    coords.shift === range.shift
+    && coords.row >= range.rowMin
+    && coords.row <= range.rowMax
+    && coords.col >= range.colMin
+    && coords.col <= range.colMax
+  );
+}
+
+function applyTimelineRangeSelectionHighlight() {
+  const wrapper = document.getElementById('timelineWrapper');
+  if (!wrapper) return;
+  wrapper.querySelectorAll('.tl-cell.selected-range').forEach(td => td.classList.remove('selected-range'));
+  if (!tlRangeSelection || tlZoom !== 'shifts') return;
+  wrapper.querySelectorAll('.tl-cell[data-shift]').forEach(td => {
+    const c = tlCellCoordsFromElement(td);
+    if (isCoordsInTimelineRange(c, tlRangeSelection)) td.classList.add('selected-range');
+  });
+}
+
+function appendSectionsToCell(kwId, dayIdx, shift, sections, opts = {}) {
+  const { replace = false } = opts;
   const key = wiKey(kwId, dayIdx, shift);
-  workItems[key] = regenerateShiftPayloadIds(payload);
+  if (!workItems[key]) workItems[key] = {};
+  const regenerated = regenerateShiftPayloadIds(sections || {});
+  SHIFT_CLIP_SECTIONS.forEach(section => {
+    const incoming = Array.isArray(regenerated[section]) ? regenerated[section] : [];
+    const existing = Array.isArray(workItems[key][section]) ? workItems[key][section] : [];
+    workItems[key][section] = replace ? incoming : [...existing, ...incoming];
+  });
+}
+
+function applyShiftPayloadToCell(kwId, dayIdx, shift, payload, opts = {}) {
+  const { replace = false, render = true } = opts;
+  flushOpenSDPTables();
+  appendSectionsToCell(kwId, dayIdx, shift, payload, { replace });
   saveWorkItemsLS();
   markDirty();
-  updateStats();
-  renderTimeline();
-  renderKWList();
-  if (selectedCell && selectedCell.kwId === kwId && selectedCell.dayIdx === dayIdx && selectedCell.shift === shift) {
-    initSDPTables(kwId, dayIdx, shift);
-    selectedCell.grp ? showOnlySDPSection(selectedCell.grp) : showAllSDPSections();
+  if (render) {
+    updateStats();
+    renderTimeline();
+    renderKWList();
+    if (selectedCell && selectedCell.kwId === kwId && selectedCell.dayIdx === dayIdx && selectedCell.shift === shift) {
+      initSDPTables(kwId, dayIdx, shift);
+      selectedCell.grp ? showOnlySDPSection(selectedCell.grp) : showAllSDPSections();
+    }
   }
 }
 
-function applySectionToShift(kwId, dayIdx, shift, section, data) {
-  const key = wiKey(kwId, dayIdx, shift);
-  if (!workItems[key]) workItems[key] = {};
-  const regenerated = regenerateShiftPayloadIds({ [section]: data });
-  workItems[key][section] = regenerated[section];
+function applySectionToShift(kwId, dayIdx, shift, section, data, opts = {}) {
+  const { replace = false, render = true } = opts;
+  appendSectionsToCell(kwId, dayIdx, shift, { [section]: data }, { replace });
+  saveWorkItemsLS();
+  markDirty();
+  if (render) {
+    updateStats();
+    renderTimeline();
+    renderKWList();
+    if (selectedCell && selectedCell.kwId === kwId && selectedCell.dayIdx === dayIdx && selectedCell.shift === shift) {
+      if (sdpTables[section]) sdpTables[section].setData(getSection(kwId, dayIdx, shift, section));
+    }
+  }
+}
+
+function copyTimelineRangeToClipboard() {
+  if (!tlRangeSelection) return false;
+  const cells = [];
+  for (let row = tlRangeSelection.rowMin; row <= tlRangeSelection.rowMax; row++) {
+    const grp = TL_GROUPS[row]?.id;
+    if (!grp) continue;
+    for (let col = tlRangeSelection.colMin; col <= tlRangeSelection.colMax; col++) {
+      const kwIdx = Math.floor(col / 7);
+      const dayIdx = col % 7;
+      const kw = kwList[kwIdx];
+      if (!kw) continue;
+      cells.push({
+        row,
+        col,
+        grp,
+        sections: { [grp]: JSON.parse(JSON.stringify(getSection(kw.id, dayIdx, tlRangeSelection.shift, grp))) },
+      });
+    }
+  }
+  const wrap = {
+    _schichtplanungRangeV1: true,
+    shift: tlRangeSelection.shift,
+    rowMin: tlRangeSelection.rowMin,
+    colMin: tlRangeSelection.colMin,
+    rowMax: tlRangeSelection.rowMax,
+    colMax: tlRangeSelection.colMax,
+    cells,
+  };
+  lastClipboardInternal = { type: 'range', payload: wrap };
+  const json = JSON.stringify(wrap);
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(json).then(() => showToast('Bereich kopiert (Strg+V)')).catch(() => showToast('Bereich kopiert'));
+  } else {
+    showToast('Bereich kopiert');
+  }
+  return true;
+}
+
+function pasteTimelineRangePayload(rangePayload) {
+  if (!rangePayload || !timelineShiftFocus) return false;
+  const targetShift = timelineShiftFocus.shift;
+  const targetRowStart = timelineShiftFocus.grp ? tlGroupIndex(timelineShiftFocus.grp) : rangePayload.rowMin;
+  const targetKwIdx = kwList.findIndex(k => k.id === timelineShiftFocus.kwId);
+  if (targetKwIdx < 0 || targetRowStart < 0) return false;
+  const targetColStart = targetKwIdx * 7 + timelineShiftFocus.dayIdx;
+
+  let pasted = 0;
+  rangePayload.cells.forEach(cell => {
+    const rowDelta = cell.row - rangePayload.rowMin;
+    const colDelta = cell.col - rangePayload.colMin;
+    const tRow = targetRowStart + rowDelta;
+    const tCol = targetColStart + colDelta;
+    if (tRow < 0 || tRow >= TL_GROUPS.length) return;
+    const tGrp = TL_GROUPS[tRow].id;
+    const tKwIdx = Math.floor(tCol / 7);
+    const tDayIdx = tCol % 7;
+    const tKw = kwList[tKwIdx];
+    if (!tKw) return;
+    const srcSection = Object.keys(cell.sections || {}).find(k => SHIFT_CLIP_SECTIONS.includes(k));
+    if (!srcSection) return;
+    const rows = Array.isArray(cell.sections[srcSection]) ? cell.sections[srcSection] : [];
+    if (!rows.length) return;
+    appendSectionsToCell(tKw.id, tDayIdx, targetShift, { [tGrp]: rows }, { replace: false });
+    pasted += rows.length;
+  });
+
+  if (!pasted) return false;
   saveWorkItemsLS();
   markDirty();
   updateStats();
   renderTimeline();
   renderKWList();
-  if (selectedCell && selectedCell.kwId === kwId && selectedCell.dayIdx === dayIdx && selectedCell.shift === shift) {
-    if (sdpTables[section]) sdpTables[section].setData(getSection(kwId, dayIdx, shift, section));
+  if (selectedCell && sdpTables[selectedCell.grp || '']) {
+    initSDPTables(selectedCell.kwId, selectedCell.dayIdx, selectedCell.shift);
+    selectedCell.grp ? showOnlySDPSection(selectedCell.grp) : showAllSDPSections();
   }
+  showToast('Bereich eingefügt');
+  return true;
 }
 
 function copyTimelineShiftToClipboard() {
+  if (copyTimelineRangeToClipboard()) return;
   if (!timelineShiftFocus) {
     showToast('Zuerst eine Schicht-Zelle anklicken (Ansicht „Schichten“)');
     return;
@@ -569,6 +741,8 @@ function copyTimelineShiftToClipboard() {
   }
   const wrap = { _schichtplanungShiftV1: true, sections };
   shiftClipboardInternal = wrap;
+  sdpRowClipboardInternal = null;
+  lastClipboardInternal = { type: 'shift', payload: wrap };
   const json = JSON.stringify(wrap);
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(json).then(() => {
@@ -599,25 +773,40 @@ function pasteTimelineShiftFromClipboard() {
         alert('Verschiedene Ressourcen-Typen – Einfügen nicht möglich.\n\nKopiert: ' + fromLbl + '\nZiel: ' + toLbl);
         return;
       }
-      applySectionToShift(kwId, dayIdx, shift, clipSection, sections[clipSection]);
+      applySectionToShift(kwId, dayIdx, shift, clipSection, sections[clipSection], { replace: false });
       showToast('Ressource eingefügt');
     } else {
       const fullPayload = {};
       SHIFT_CLIP_SECTIONS.forEach(s => { fullPayload[s] = sections[s] || []; });
-      applyShiftPayloadToCell(kwId, dayIdx, shift, fullPayload);
+      applyShiftPayloadToCell(kwId, dayIdx, shift, fullPayload, { replace: false });
       showToast('Schicht eingefügt');
     }
   };
   if (navigator.clipboard?.readText) {
     navigator.clipboard.readText().then(text => {
+      let rangePayload = parseRangeClipboardPayload(text);
+      if (!rangePayload && lastClipboardInternal?.type === 'range') rangePayload = lastClipboardInternal.payload;
+      if (rangePayload && pasteTimelineRangePayload(rangePayload)) return;
       let sections = parseShiftClipboardPayload(text);
-      if (!sections && shiftClipboardInternal?.sections) sections = shiftClipboardInternal.sections;
+      if (!sections && lastClipboardInternal && (lastClipboardInternal.type === 'shift' || lastClipboardInternal.type === 'row')) {
+        sections = lastClipboardInternal.payload?.sections || null;
+      }
       apply(sections);
     }).catch(() => {
-      apply(shiftClipboardInternal?.sections || null);
+      if (lastClipboardInternal?.type === 'range' && pasteTimelineRangePayload(lastClipboardInternal.payload)) return;
+      if (lastClipboardInternal && (lastClipboardInternal.type === 'shift' || lastClipboardInternal.type === 'row')) {
+        apply(lastClipboardInternal.payload?.sections || null);
+        return;
+      }
+      apply(null);
     });
   } else {
-    apply(shiftClipboardInternal?.sections || null);
+    if (lastClipboardInternal?.type === 'range' && pasteTimelineRangePayload(lastClipboardInternal.payload)) return;
+    if (lastClipboardInternal && (lastClipboardInternal.type === 'shift' || lastClipboardInternal.type === 'row')) {
+      apply(lastClipboardInternal.payload?.sections || null);
+      return;
+    }
+    apply(null);
   }
 }
 
@@ -804,6 +993,7 @@ function updateStats() {
 
 function setZoom(zoom) {
   tlZoom = zoom;
+  if (zoom !== 'shifts') clearTimelineRangeSelection();
   document.querySelectorAll('.zoom-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.zoom === zoom));
   renderTimeline();
@@ -956,7 +1146,17 @@ function renderTimeline() {
 
   // Cell click → open SDP for single resource (only in shifts zoom)
   wrapper.querySelectorAll('.tl-cell[data-shift]').forEach(td => {
-    td.addEventListener('click', () => {
+    td.addEventListener('click', (event) => {
+      const coords = tlCellCoordsFromElement(td);
+      if (event.shiftKey && tlRangeAnchor && coords && setTimelineRangeSelection(tlRangeAnchor, coords)) {
+        timelineShiftFocus = { kwId: coords.kwId, dayIdx: coords.dayIdx, shift: coords.shift, grp: coords.grp || undefined };
+        applyTimelineRangeSelectionHighlight();
+        showToast('Bereich markiert');
+        return;
+      }
+      if (coords) tlRangeAnchor = coords;
+      clearTimelineRangeSelection();
+      applyTimelineRangeSelectionHighlight();
       openSDP(td.dataset.kw, parseInt(td.dataset.day), td.dataset.shift, td.dataset.grp || null);
     });
   });
@@ -979,6 +1179,7 @@ function renderTimeline() {
       ).forEach(td => td.classList.add('selected'));
     }
   }
+  applyTimelineRangeSelectionHighlight();
 }
 
 function calcColCount() {
@@ -1212,6 +1413,33 @@ function sdpDeleteColumn(kwId, dayIdx, shift, section) {
   };
 }
 
+function buildSdpRowContextMenu(kwId, dayIdx, shift, section) {
+  return [
+    {
+      label: '<span>📋 Ressource kopieren</span>',
+      action: (e, row) => {
+        const data = row.getData() || {};
+        const clean = {};
+        Object.entries(data).forEach(([k, v]) => { if (!k.startsWith('_')) clean[k] = v; });
+        delete clean.id;
+        const wrap = { _schichtplanungShiftV1: true, sections: { [section]: [clean] } };
+        sdpRowClipboardInternal = wrap;
+        shiftClipboardInternal = wrap;
+        lastClipboardInternal = { type: 'row', payload: wrap };
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(JSON.stringify(wrap)).catch(() => {});
+        }
+        timelineShiftFocus = { kwId, dayIdx, shift, grp: section };
+        showToast('Ressource kopiert (Zielzelle wählen, Strg+V)');
+      },
+    },
+    {
+      label: '<span style="color:#DC002E">✕ Zeile löschen</span>',
+      action: (e, row) => { row.delete(); saveSDPSection(kwId, dayIdx, shift, section); },
+    },
+  ];
+}
+
 const SDP_FUNKTION_VALUES = ['Baugruppe','Sicherheit','Maschinist','Polier','Bauleiter','Fremdfirma'];
 
 function closeSDP() {
@@ -1232,8 +1460,7 @@ function initSDPTables(kwId, dayIdx, shift) {
   sdpTables.tasks = new Tabulator('#sdp-tbl-tasks', {
     data: getSection(kwId, dayIdx, shift, 'tasks').map(d => ({...d})),
     layout: 'fitColumns', height: 'auto', maxHeight: '260px', history: true,
-    rowContextMenu: [{ label: '<span style="color:#DC002E">✕ Zeile löschen</span>',
-      action: (e, row) => { row.delete(); saveSDPSection(kwId, dayIdx, shift, 'tasks'); } }],
+    rowContextMenu: buildSdpRowContextMenu(kwId, dayIdx, shift, 'tasks'),
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'tasks'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'tasks'),
     columns: [
@@ -1250,8 +1477,7 @@ function initSDPTables(kwId, dayIdx, shift) {
   sdpTables.personal = new Tabulator('#sdp-tbl-personal', {
     data: getSection(kwId, dayIdx, shift, 'personal').map(d => ({...d})),
     layout: 'fitColumns', height: 'auto', maxHeight: '260px', history: true,
-    rowContextMenu: [{ label: '<span style="color:#DC002E">✕ Zeile löschen</span>',
-      action: (e, row) => { row.delete(); saveSDPSection(kwId, dayIdx, shift, 'personal'); } }],
+    rowContextMenu: buildSdpRowContextMenu(kwId, dayIdx, shift, 'personal'),
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'personal'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'personal'),
     columns: [
@@ -1268,8 +1494,7 @@ function initSDPTables(kwId, dayIdx, shift) {
   sdpTables.inventar = new Tabulator('#sdp-tbl-inventar', {
     data: getSection(kwId, dayIdx, shift, 'inventar').map(d => ({...d})),
     layout: 'fitColumns', height: 'auto', maxHeight: '260px', history: true,
-    rowContextMenu: [{ label: '<span style="color:#DC002E">✕ Zeile löschen</span>',
-      action: (e, row) => { row.delete(); saveSDPSection(kwId, dayIdx, shift, 'inventar'); } }],
+    rowContextMenu: buildSdpRowContextMenu(kwId, dayIdx, shift, 'inventar'),
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'inventar'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'inventar'),
     columns: [
@@ -1285,8 +1510,7 @@ function initSDPTables(kwId, dayIdx, shift) {
   sdpTables.material = new Tabulator('#sdp-tbl-material', {
     data: getSection(kwId, dayIdx, shift, 'material').map(d => ({...d})),
     layout: 'fitColumns', height: 'auto', maxHeight: '260px', history: true,
-    rowContextMenu: [{ label: '<span style="color:#DC002E">✕ Zeile löschen</span>',
-      action: (e, row) => { row.delete(); saveSDPSection(kwId, dayIdx, shift, 'material'); } }],
+    rowContextMenu: buildSdpRowContextMenu(kwId, dayIdx, shift, 'material'),
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'material'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'material'),
     columns: [
@@ -1304,8 +1528,7 @@ function initSDPTables(kwId, dayIdx, shift) {
   sdpTables.fremdleistung = new Tabulator('#sdp-tbl-fremdleistung', {
     data: getSection(kwId, dayIdx, shift, 'fremdleistung').map(d => ({...d})),
     layout: 'fitColumns', height: 'auto', maxHeight: '260px', history: true,
-    rowContextMenu: [{ label: '<span style="color:#DC002E">✕ Zeile löschen</span>',
-      action: (e, row) => { row.delete(); saveSDPSection(kwId, dayIdx, shift, 'fremdleistung'); } }],
+    rowContextMenu: buildSdpRowContextMenu(kwId, dayIdx, shift, 'fremdleistung'),
     cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'fremdleistung'),
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'fremdleistung'),
     columns: [
