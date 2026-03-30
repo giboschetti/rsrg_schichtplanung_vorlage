@@ -262,16 +262,25 @@ function queueAutosave() {
   }, 1200);
 }
 
-function startAutosaveWatcher() {
+function installDirtyHook() {
   if (state.autosaveStarted) return;
+  const originalMarkDirty = window.markDirty;
+  if (typeof originalMarkDirty !== "function") {
+    setTimeout(installDirtyHook, 250);
+    return;
+  }
+  if (originalMarkDirty._spCloudWrapped) {
+    state.autosaveStarted = true;
+    return;
+  }
+  const wrapped = function (...args) {
+    const result = originalMarkDirty.apply(this, args);
+    queueAutosave();
+    return result;
+  };
+  wrapped._spCloudWrapped = true;
+  window.markDirty = wrapped;
   state.autosaveStarted = true;
-  setInterval(() => {
-    const snapshot = extractSnapshotFromLocalStorage();
-    const hash = snapshotHash(snapshot);
-    if (hash !== state.lastSnapshotHash) {
-      queueAutosave();
-    }
-  }, 4000);
 }
 
 function bindUiEvents() {
@@ -322,7 +331,7 @@ function authGuard() {
       const ready = await loadProjectForUser(user, projectId);
       if (!ready) return;
       bindUiEvents();
-      startAutosaveWatcher();
+      installDirtyHook();
     } catch (error) {
       console.error(error);
       alert("Projekt konnte nicht geöffnet werden: " + error.message);
