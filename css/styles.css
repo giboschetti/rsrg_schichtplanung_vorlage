@@ -522,8 +522,8 @@
     .tl-dual-grid {
       display: flex;
       flex-direction: column;
-      /* more visual separation between Tag / Nacht */
-      gap: 18px;
+      /* stronger separation between Tag (oben) und Nacht (unten) */
+      row-gap: 26px;
     }
 
     /* Shift tables are embedded in "cards" (tl-timeline-card) */
@@ -624,10 +624,10 @@
     .tl-cat-stack {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      /* tighter spacing between header + categories within derselben Schicht */
+      row-gap: 8px;
       align-items: flex-start;
-      /* keep the rounded card edges clean around sticky columns */
-      padding: 2px 0;
+      padding: 0;
     }
 
     .tl-timeline-card {
