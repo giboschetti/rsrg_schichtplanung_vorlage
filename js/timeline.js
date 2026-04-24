@@ -115,31 +115,68 @@ function buildResRowForShift(g, shiftId) {
   return html;
 }
 
+function toggleTlGroup(groupId) {
+  tlCollapsed[groupId] = !tlCollapsed[groupId];
+  renderTimeline();
+}
+
 function buildTasksRowsForShift(shiftId) {
   const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
   const tasksGroup = { id: 'tasks', label: 'Tätigkeiten', section: 'tasks' };
-  const phases = getUsedTaskBauphaseBauteile();
+  const collapsed = !!tlCollapsed['tasks'];
+  const toggleIcon = collapsed ? '▶' : '▼';
 
-  let html = `<tr class="tl-res-row tl-tasks-parent-row"><td class="tl-label-td tl-tasks-parent">Tätigkeiten</td>`;
+  // Parent row
+  let html = `<tr class="tl-res-row tl-tasks-parent-row">`;
+  html += `<td class="tl-label-td tl-tasks-parent">`;
+  html += `<button class="tl-toggle-btn" onclick="toggleTlGroup('tasks')">${toggleIcon}</button>`;
+  html += `Tätigkeiten</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-      html += buildCell(kw.id, dayIdx, shiftId, tasksGroup, [], sh.cls + kwBorder + ' tl-cell-parent-summary');
+      const attrs = `data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${shiftId}" data-grp="tasks"`;
+      if (collapsed) {
+        const count = getSection(kw.id, dayIdx, shiftId, 'tasks').length;
+        const badge = count > 0 ? `<span class="tl-agg-badge">${count}</span>` : '';
+        html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary" ${attrs}>${badge}</td>`;
+      } else {
+        html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary" ${attrs}></td>`;
+      }
     });
   });
   html += '</tr>';
 
-  phases.forEach(phase => {
-    html += `<tr class="tl-res-row tl-tasks-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(phase)}</td>`;
-    kwList.forEach((kw, ki) => {
-      TL_DAYS.forEach((_, dayIdx) => {
-        const items = getTaskItemsByBauphaseBauteil(kw.id, dayIdx, shiftId, phase);
-        const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-        html += buildCell(kw.id, dayIdx, shiftId, tasksGroup, items, sh.cls + kwBorder);
+  if (!collapsed) {
+    const fachdienste = getUsedFachdienste();
+    fachdienste.forEach(fachdienst => {
+      // Level-1: Fachdienst child row
+      html += `<tr class="tl-res-row tl-tasks-child-row">`;
+      html += `<td class="tl-label-td tl-label-td-child">${escapeHtmlText(fachdienst)}</td>`;
+      kwList.forEach((kw, ki) => {
+        TL_DAYS.forEach((_, dayIdx) => {
+          const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+          html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary"
+            data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${shiftId}" data-grp="tasks"></td>`;
+        });
+      });
+      html += '</tr>';
+
+      // Level-2: Bauteil grandchild rows
+      const bauteile = getBauteileForFachdienstInUse(fachdienst);
+      bauteile.forEach(bauteil => {
+        html += `<tr class="tl-res-row tl-tasks-grandchild-row">`;
+        html += `<td class="tl-label-td tl-label-td-grandchild">${escapeHtmlText(bauteil)}</td>`;
+        kwList.forEach((kw, ki) => {
+          TL_DAYS.forEach((_, dayIdx) => {
+            const items = getTaskItemsByFachdienstBauteil(kw.id, dayIdx, shiftId, fachdienst, bauteil);
+            const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+            html += buildCell(kw.id, dayIdx, shiftId, tasksGroup, items, sh.cls + kwBorder);
+          });
+        });
+        html += '</tr>';
       });
     });
-    html += '</tr>';
-  });
+  }
 
   return html;
 }
@@ -148,27 +185,41 @@ function buildPersonalRowsForShift(shiftId) {
   const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
   const personalGroup = { id: 'personal', label: 'Personal', section: 'personal' };
   const functions = getUsedPersonalFunctions();
+  const collapsed = !!tlCollapsed['personal'];
+  const toggleIcon = collapsed ? '▶' : '▼';
 
-  let html = `<tr class="tl-res-row tl-personal-parent-row"><td class="tl-label-td tl-personal-parent">Personal</td>`;
+  let html = `<tr class="tl-res-row tl-personal-parent-row">`;
+  html += `<td class="tl-label-td tl-personal-parent">`;
+  html += `<button class="tl-toggle-btn" onclick="toggleTlGroup('personal')">${toggleIcon}</button>`;
+  html += `Personal</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-      html += buildCell(kw.id, dayIdx, shiftId, personalGroup, [], sh.cls + kwBorder + ' tl-cell-parent-summary');
+      const attrs = `data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${shiftId}" data-grp="personal"`;
+      if (collapsed) {
+        const count = getSection(kw.id, dayIdx, shiftId, 'personal').length;
+        const badge = count > 0 ? `<span class="tl-agg-badge">${count}</span>` : '';
+        html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary" ${attrs}>${badge}</td>`;
+      } else {
+        html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary" ${attrs}></td>`;
+      }
     });
   });
   html += '</tr>';
 
-  functions.forEach(funktion => {
-    html += `<tr class="tl-res-row tl-personal-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(funktion)}</td>`;
-    kwList.forEach((kw, ki) => {
-      TL_DAYS.forEach((_, dayIdx) => {
-        const items = getPersonalItemsByFunction(kw.id, dayIdx, shiftId, funktion);
-        const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-        html += buildCell(kw.id, dayIdx, shiftId, personalGroup, items, sh.cls + kwBorder);
+  if (!collapsed) {
+    functions.forEach(funktion => {
+      html += `<tr class="tl-res-row tl-personal-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(funktion)}</td>`;
+      kwList.forEach((kw, ki) => {
+        TL_DAYS.forEach((_, dayIdx) => {
+          const items = getPersonalItemsByFunction(kw.id, dayIdx, shiftId, funktion);
+          const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+          html += buildCell(kw.id, dayIdx, shiftId, personalGroup, items, sh.cls + kwBorder);
+        });
       });
+      html += '</tr>';
     });
-    html += '</tr>';
-  });
+  }
 
   return html;
 }

@@ -149,7 +149,7 @@ async function saveToFile() {
     const el = document.getElementById('sd-' + id);
     if (el) stammdaten[id] = el.value;
   });
-  stammdaten.bauphaseBauteile = [...bauphaseBauteile];
+  stammdaten.fachdienstBauteile = JSON.parse(JSON.stringify(fachdienstBauteile));
 
   const snapshot = {
     savedAt:     new Date().toISOString(),

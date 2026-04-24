@@ -9,7 +9,49 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&amp;family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap" rel="stylesheet">
   <link href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator.min.css" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
-
+  <style>
+    .tl-toggle-btn {
+      background: none;
+      border: 1px solid var(--border, #d9d3c8);
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 9px;
+      padding: 1px 4px;
+      margin-right: 5px;
+      color: var(--text-muted, #6b6560);
+      line-height: 1.2;
+      vertical-align: middle;
+    }
+    .tl-toggle-btn:hover { background: var(--surface-hover, #f0ece4); }
+    .tl-agg-badge {
+      display: block;
+      width: 100%;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted, #6b6560);
+      padding: 2px 0;
+    }
+    .tl-label-td-grandchild {
+      padding-left: 28px !important;
+      font-size: 11px;
+      color: var(--text-muted, #6b6560);
+    }
+    .tl-tasks-grandchild-row td, .tl-tasks-grandchild-row .tl-label-td {
+      background: var(--surface, #fff);
+    }
+    .bauphase-group { margin-bottom: 8px; }
+    .bauphase-group-hdr {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted, #6b6560);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 4px 0 2px 0;
+      border-bottom: 1px solid var(--border, #d9d3c8);
+      margin-bottom: 4px;
+    }
+  </style>
 
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -156,15 +198,23 @@
 
     <div class="section-card">
       <div class="section-hdr" onclick="toggleSection(this)">
-        <span>Bauphase / Bauteil</span>
+        <span>Fachdienst / Bauteil</span>
         <span class="chevron">▼</span>
       </div>
       <div class="section-body">
         <div class="dashboard-create-row">
-          <input id="sd-bauphase-input" class="dashboard-input" type="text" placeholder="z. B. Gleisbau, Entwässerung, Betonplatte">
-          <button id="btnAddBauphase" class="btn btn-accent" type="button">+ Eintrag</button>
+          <select id="sd-fachdienst-select" class="dashboard-input" style="max-width:140px">
+            <option value="FB">FB</option>
+            <option value="IB/TB">IB/TB</option>
+            <option value="FL">FL</option>
+            <option value="SAZ">SAZ</option>
+            <option value="KAB">KAB</option>
+            <option value="Andere">Andere</option>
+          </select>
+          <input id="sd-bauteil-input" class="dashboard-input" type="text" placeholder="Bauteil-Name">
+          <button id="btnAddBauteil" class="btn btn-accent" type="button">+ Eintrag</button>
         </div>
-        <div id="bauphaseList" class="projects-list"></div>
+        <div id="fachdienstBauteilList" class="projects-list"></div>
       </div>
     </div>
 
@@ -214,6 +264,7 @@
         <button class="filter-pill active" data-grp="inventar" onclick="toggleTLFilter('inventar',this)">Inventar</button>
         <button class="filter-pill active" data-grp="material" onclick="toggleTLFilter('material',this)">Material</button>
         <button class="filter-pill active" data-grp="fremdleistung" onclick="toggleTLFilter('fremdleistung',this)">Fremdleistung</button>
+        <button class="filter-pill active" data-grp="intervalle" onclick="toggleTLFilter('intervalle',this)">Intervalle</button>
       </div>
       <div class="tl-right">
         <button class="btn btn-accent" style="height:26px;padding:0 12px;font-size:11px;margin-right:10px" onclick="openBulkAddModal()">+ Mehrfach Ressourcen</button>
@@ -321,6 +372,23 @@
             </div>
           </div>
 
+          <!-- Intervalle -->
+          <div class="sdp-section" data-grp="intervalle">
+            <div class="sdp-section-hdr collapsed" onclick="toggleSDPSection(this)">
+              <div class="sdp-section-left">
+                <span>Intervalle</span>
+                <span class="sdp-count empty" id="sdp-count-intervalle">0</span>
+              </div>
+              <span class="chevron">▼</span>
+            </div>
+            <div class="sdp-section-body collapsed">
+              <div id="sdp-tbl-intervalle" class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: auto; max-height: 260px;"></div>
+              <div class="tbl-toolbar">
+                <button class="btn btn-add" onclick="addSDPRow('intervalle')">+ Zeile</button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -363,8 +431,9 @@
         <div class="form-group"><label>Bemerkung</label><input type="text" id="bulk-inventar-bemerkung"></div>
       </div>
       <div class="bulk-add-type-panel" data-type="tasks" style="display:none">
-        <div class="form-group"><label>Tätigkeit</label><input type="text" id="bulk-tasks-name" placeholder="z.B. Aushub"></div>
-        <div class="form-group"><label>Bauphase / Bauteil</label><select id="bulk-tasks-bauphase"><option value="">— Ohne Bauphase/Bauteil —</option></select></div>
+        <div class="form-group"><label>Fachdienst</label><select id="bulk-tasks-fachdienst" onchange="renderBulkAddBauteilOptions()"><option value="">— Fachdienst —</option><option value="FB">FB</option><option value="IB/TB">IB/TB</option><option value="FL">FL</option><option value="SAZ">SAZ</option><option value="KAB">KAB</option><option value="Andere">Andere</option></select></div>
+        <div class="form-group"><label>Bauteil</label><select id="bulk-tasks-bauteil"><option value="">— Ohne Bauteil —</option></select></div>
+        <div class="form-group"><label>Tätigkeit</label><input type="text" id="bulk-tasks-taetigkeit" placeholder="z.B. Aushub"></div>
         <div class="form-group"><label>Beschreibung</label><textarea id="bulk-tasks-beschreibung" rows="3" placeholder="Ausführliche Beschreibung der Tätigkeit"></textarea></div>
         <div class="form-group"><label>Bereich / Ort</label><input type="text" id="bulk-tasks-location"></div>
         <div class="form-group"><label>Status</label><select id="bulk-tasks-status"><option value="">—</option><option value="Planung">Planung</option><option value="Bestellt">Bestellt</option><option value="Bestätigt">Bestätigt</option></select></div>

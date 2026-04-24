@@ -8,6 +8,8 @@ const TL_DAYS   = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const TL_MONTH_DE = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
 const TL_SHIFTS = [{ id: 'T', label: 'Tag', cls: 'sh-t' }, { id: 'N', label: 'Nacht', cls: 'sh-n' }];
 
+const FACHDIENST_VALUES = ['FB', 'IB/TB', 'FL', 'SAZ', 'KAB', 'Andere'];
+
 // Each group maps to a section key in workItems cell
 const TL_GROUPS = [
   { id: 'tasks',         label: 'Tätigkeiten',  section: 'tasks' },
@@ -15,13 +17,15 @@ const TL_GROUPS = [
   { id: 'inventar',      label: 'Inventar',        section: 'inventar' },
   { id: 'material',      label: 'Material',        section: 'material' },
   { id: 'fremdleistung', label: 'Fremdleistung',   section: 'fremdleistung' },
+  { id: 'intervalle',    label: 'Intervalle',      section: 'intervalle' },
 ];
 
-const SHIFT_CLIP_SECTIONS = ['tasks', 'personal', 'inventar', 'material', 'fremdleistung'];
+const SHIFT_CLIP_SECTIONS = ['tasks', 'personal', 'inventar', 'material', 'fremdleistung', 'intervalle'];
 
 const SDP_RES_STATUS_VALUES = ['Planung', 'Bestellt', 'Bestätigt'];
 const SDP_FUNKTION_VALUES = ['Baugruppe','Sicherheit','Maschinist','Polier','Bauleiter','Fremdfirma'];
-const SDP_SECTIONS = ['tasks', 'personal', 'inventar', 'material', 'fremdleistung'];
+const SDP_INTERVALLE_STATUS_VALUES = ['Entwurf', 'Änderung', 'Verständigt', 'Zusätzlicher Bedarf'];
+const SDP_SECTIONS = ['tasks', 'personal', 'inventar', 'material', 'fremdleistung', 'intervalle'];
 
 // ─── PDF Design System Colours (RGB) ─────────────────────────────────────────
 const PDF_C = {

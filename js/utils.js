@@ -98,28 +98,35 @@ function tlDayThHtml(kw, dayIdx) {
 
 // ─── Normalization helpers ────────────────────────────────────────────────────
 
-function normalizeBauphaseBauteilValue(raw) {
-  return String(raw || '').trim();
-}
-
 function normalizePersonalFunktion(raw) {
   const v = String(raw || '').trim();
   return v || 'Ohne Funktion';
 }
 
-function normalizeTaskBauphaseBauteil(raw) {
-  const v = normalizeBauphaseBauteilValue(raw);
-  return v || 'Ohne Bauphase/Bauteil';
+function normalizeFachdienst(raw) {
+  const v = String(raw || '').trim();
+  return v || 'Andere';
+}
+
+function normalizeBauteil(raw) {
+  const v = String(raw || '').trim();
+  return v || 'Ohne Bauteil';
+}
+
+function normalizeTaetigkeit(raw) {
+  const v = String(raw || '').trim();
+  return v || 'Ohne Tätigkeit';
 }
 
 // ─── WorkItem display helpers ─────────────────────────────────────────────────
 
 function getItemLabel(item, sectionId) {
-  if (sectionId === 'tasks')         return item.name     || '–';
+  if (sectionId === 'tasks')         return item.taetigkeit || '–';
   if (sectionId === 'personal')      return (item.name || '').trim() || '–';
   if (sectionId === 'inventar')      return item.geraet   || '–';
   if (sectionId === 'material')      return item.material || '–';
   if (sectionId === 'fremdleistung') return item.firma    || '–';
+  if (sectionId === 'intervalle')    return item.babTitel || item.babNr || '–';
   return '–';
 }
 
@@ -133,7 +140,7 @@ function tlBlockClassFromResStatus(it) {
 
 function tlBlockTitle(it, sectionId) {
   if (sectionId === 'tasks')
-    return [it.name, it.resStatus].filter(Boolean).join(' · ');
+    return [it.taetigkeit, it.resStatus].filter(Boolean).join(' · ');
   if (sectionId === 'personal') {
     const fn = (it.funktion || '').trim();
     const nm = (it.name || '').trim();
@@ -146,10 +153,28 @@ function tlBlockTitle(it, sectionId) {
     return [it.material, it.resStatus].filter(Boolean).join(' · ');
   if (sectionId === 'fremdleistung')
     return [it.firma, it.leistung, it.resStatus].filter(Boolean).join(' · ');
+  if (sectionId === 'intervalle')
+    return [it.babNr, it.babTitel, it.status].filter(Boolean).join(' · ');
   return '';
 }
 
 // ─── Data query helpers ───────────────────────────────────────────────────────
+
+function getBauteileForFachdienst(fachdienst) {
+  return Array.isArray(fachdienstBauteile[fachdienst]) ? [...fachdienstBauteile[fachdienst]] : [];
+}
+
+function getAllBauteile() {
+  const seen = new Set();
+  const result = [];
+  Object.values(fachdienstBauteile).forEach(arr => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(v => {
+      if (!seen.has(v)) { seen.add(v); result.push(v); }
+    });
+  });
+  return result;
+}
 
 function getUsedPersonalFunctions() {
   const set = new Set();
@@ -168,27 +193,35 @@ function getPersonalItemsByFunction(kwId, dayIdx, shift, funktion) {
   return getSection(kwId, dayIdx, shift, 'personal').filter(r => normalizePersonalFunktion(r?.funktion) === funktion);
 }
 
-function getUsedTaskBauphaseBauteile() {
+function getUsedFachdienste() {
   const set = new Set();
   Object.values(workItems).forEach(cell => {
     const rows = Array.isArray(cell?.tasks) ? cell.tasks : [];
-    rows.forEach(r => set.add(normalizeTaskBauphaseBauteil(r?.bauphaseBauteil)));
+    rows.forEach(r => set.add(normalizeFachdienst(r?.fachdienst)));
   });
-
-  const unassigned = 'Ohne Bauphase/Bauteil';
-  const used = [];
-  getBauphaseBauteilOptions().forEach(v => {
-    if (set.has(v)) used.push(v);
-  });
-  const extras = Array.from(set)
-    .filter(v => v !== unassigned && !used.includes(v))
-    .sort((a, b) => a.localeCompare(b, 'de-CH'));
-  used.push(...extras);
-  if (set.has(unassigned)) used.push(unassigned);
-  return used;
+  const ordered = [];
+  FACHDIENST_VALUES.forEach(f => { if (set.has(f)) ordered.push(f); });
+  const extras = Array.from(set).filter(f => !FACHDIENST_VALUES.includes(f)).sort((a, b) => a.localeCompare(b, 'de-CH'));
+  ordered.push(...extras);
+  return ordered;
 }
 
-function getTaskItemsByBauphaseBauteil(kwId, dayIdx, shift, bauphaseBauteil) {
+function getBauteileForFachdienstInUse(fachdienst) {
+  const set = new Set();
+  Object.values(workItems).forEach(cell => {
+    const rows = Array.isArray(cell?.tasks) ? cell.tasks : [];
+    rows
+      .filter(r => normalizeFachdienst(r?.fachdienst) === fachdienst)
+      .forEach(r => set.add(normalizeBauteil(r?.bauteil)));
+  });
+  const masterBauteile = getBauteileForFachdienst(fachdienst);
+  const ordered = masterBauteile.filter(v => set.has(v));
+  const extras = Array.from(set).filter(v => !ordered.includes(v)).sort((a, b) => a.localeCompare(b, 'de-CH'));
+  ordered.push(...extras);
+  return ordered;
+}
+
+function getTaskItemsByFachdienstBauteil(kwId, dayIdx, shift, fachdienst, bauteil) {
   return getSection(kwId, dayIdx, shift, 'tasks')
-    .filter(r => normalizeTaskBauphaseBauteil(r?.bauphaseBauteil) === bauphaseBauteil);
+    .filter(r => normalizeFachdienst(r?.fachdienst) === fachdienst && normalizeBauteil(r?.bauteil) === bauteil);
 }

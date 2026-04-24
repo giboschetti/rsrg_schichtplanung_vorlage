@@ -123,12 +123,17 @@ function buildStammdatenPDFPage(doc, y, W, proj) {
     columnStyles: { 0: { cellWidth: 55, fontStyle: 'bold', fillColor: [240, 237, 230] } },
   });
 
-  const bauphasen = getBauphaseBauteilOptions();
-  if (bauphasen.length) {
+  const allBauteile = getAllBauteile();
+  if (allBauteile.length) {
     y += 4;
-    y = pdfSectionHeading(doc, 'Bauphase / Bauteil', y, W);
-    const bpBody = bauphasen.map(v => [v]);
-    y = pdfTable(doc, [['Eintrag']], bpBody, y, W, { fontSize: 7.5 });
+    y = pdfSectionHeading(doc, 'Fachdienst / Bauteil', y, W);
+    const bpBody = [];
+    FACHDIENST_VALUES.forEach(fd => {
+      const items = getBauteileForFachdienst(fd);
+      if (!items.length) return;
+      items.forEach(bauteil => bpBody.push([fd, bauteil]));
+    });
+    y = pdfTable(doc, [['Fachdienst', 'Bauteil']], bpBody, y, W, { fontSize: 7.5 });
   }
 
   if (tables['mitarbeiter']) {
@@ -218,10 +223,12 @@ function buildKWSummaryPage(doc, kw, y, W, proj) {
       }
       if (g.id === 'tasks') {
         rows.push(buildSummaryRow('Tätigkeiten', shiftId, () => []));
-        getUsedTaskBauphaseBauteile().forEach(phase => {
-          rows.push(buildSummaryRow('  ↳ ' + phase, shiftId, dayIdx =>
-            withSection(getTaskItemsByBauphaseBauteil(kw.id, dayIdx, shiftId, phase), 'tasks')
-          ));
+        getUsedFachdienste().forEach(fd => {
+          getBauteileForFachdienstInUse(fd).forEach(bauteil => {
+            rows.push(buildSummaryRow('  ↳ ' + fd + ' / ' + bauteil, shiftId, dayIdx =>
+              withSection(getTaskItemsByFachdienstBauteil(kw.id, dayIdx, shiftId, fd, bauteil), 'tasks')
+            ));
+          });
         });
         return;
       }
@@ -252,40 +259,26 @@ function buildShiftDetailPage(doc, kw, dayIdx, shift, y, W, proj) {
   const subtitle = kw.label + '  —  ' + dayLabel + '  —  ' + shLabel;
 
   const cell = workItems[wiKey(kw.id, dayIdx, shift)] || {};
-  const hasContent = ['tasks','personal','inventar','material','fremdleistung']
+  const hasContent = ['tasks','personal','inventar','material','fremdleistung','intervalle']
     .some(s => (cell[s] || []).length > 0);
   if (!hasContent) return y;
 
   doc.addPage();
   y = pdfHeader(doc, proj, subtitle, true);
 
-  const tasks = (cell.tasks || []).filter(t => t.name || t.beschreibung || t.location);
+  const tasks = (cell.tasks || []).filter(t => t.taetigkeit || t.beschreibung || t.location);
   if (tasks.length) {
     y = pdfSectionHeading(doc, 'Tätigkeiten', y, W);
-    const orderedPhases = getUsedTaskBauphaseBauteile();
-    const grouped = [];
-    const seen = new Set();
-    orderedPhases.forEach(phase => {
-      const items = tasks.filter(t => normalizeTaskBauphaseBauteil(t?.bauphaseBauteil) === phase);
-      if (!items.length) return;
-      items.forEach(t => grouped.push([phase, t]));
-      seen.add(phase);
-    });
-    tasks.forEach(t => {
-      const phase = normalizeTaskBauphaseBauteil(t?.bauphaseBauteil);
-      if (seen.has(phase)) return;
-      grouped.push([phase, t]);
-    });
-    const body = grouped.map(([phase, t]) => [
-      phase || 'Ohne Bauphase/Bauteil',
-      t.name || '–',
+    const body = tasks.map(t => [
+      normalizeFachdienst(t?.fachdienst),
+      normalizeBauteil(t?.bauteil),
+      t.taetigkeit || '–',
       t.beschreibung || '–',
       t.location || '–',
       t.resStatus || '–',
-      t.notes || '–',
     ]);
     y = pdfTable(doc,
-      [['Bauphase/Bauteil','Tätigkeit','Beschreibung','Bereich/Ort','Status','Notizen']],
+      [['Fachdienst','Bauteil','Tätigkeit','Beschreibung','Bereich/Ort','Status']],
       body, y, W, { fontSize: 7.5 });
   }
 

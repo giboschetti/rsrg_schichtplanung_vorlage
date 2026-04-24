@@ -39,7 +39,8 @@ function exportUebersichtXLSXRows() {
     (cell.tasks || []).forEach(it => {
       const det = (it.beschreibung || '').trim();
       const st = [it.location, it.resStatus, it.notes].filter(Boolean).join(' — ');
-      rows.push([kw?.label||kwId, day, sh, 'Tätigkeiten', it.name||'', det, st]);
+      const taskLabel = [it.fachdienst, it.bauteil, it.taetigkeit].filter(Boolean).join(' / ');
+      rows.push([kw?.label||kwId, day, sh, 'Tätigkeiten', taskLabel, det, st]);
     });
     (cell.personal || []).forEach(it => {
       const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
@@ -57,6 +58,11 @@ function exportUebersichtXLSXRows() {
     (cell.fremdleistung || []).forEach(it => {
       const last = [it.resStatus, it.bemerkung].filter(Boolean).join(' — ');
       rows.push([kw?.label||kwId, day, sh, 'Fremdleistung', it.firma||'', it.leistung||'', last]);
+    });
+    (cell.intervalle || []).forEach(it => {
+      const zeitraum = [it.vonDatum, it.vonZeit, '–', it.bisDatum, it.bisZeit].filter(Boolean).join(' ');
+      const last = [it.status, zeitraum].filter(Boolean).join(' — ');
+      rows.push([kw?.label||kwId, day, sh, 'Intervalle', it.babNr||'', it.babTitel||'', last]);
     });
   });
   return rows;

@@ -28,7 +28,7 @@ function syncSavedDataToDom() {
       const e = document.getElementById('sd-' + id);
       if (e) stammdaten[id] = e.value;
     });
-    stammdaten.bauphaseBauteile = [...bauphaseBauteile];
+    stammdaten.fachdienstBauteile = JSON.parse(JSON.stringify(fachdienstBauteile));
     const snapshot = {
       savedAt: new Date().toISOString(),
       stammdaten,
@@ -83,7 +83,7 @@ function saveStammdaten() {
   const ids = ['projektname','projektnummer','auftraggeber','bauleiter','polier','standort','baubeginn','bauende'];
   const data = {};
   ids.forEach(id => { const el = document.getElementById('sd-' + id); if (el) data[id] = el.value; });
-  data.bauphaseBauteile = [...bauphaseBauteile];
+  data.fachdienstBauteile = JSON.parse(JSON.stringify(fachdienstBauteile));
   localStorage.setItem('stammdaten', JSON.stringify(data));
   markDirty();
 }
@@ -97,7 +97,7 @@ function loadStammdaten() {
       const el = document.getElementById('sd-' + k);
       if (el) el.value = v;
     });
-    setBauphaseBauteile(data?.bauphaseBauteile || []);
+    setFachdienstBauteile(data?.fachdienstBauteile || {});
   } catch(e) {}
 }
 
@@ -168,10 +168,16 @@ function loadWorkItemsLS() {
       Object.values(workItems).forEach(cell => {
         if (cell?.tasks) {
           cell.tasks = cell.tasks.map(it => {
-            const { category, status, ...rest } = it;
-            return { beschreibung: '', ...rest, resStatus: rest.resStatus ?? '' };
+            const { category, status, name, bauphaseBauteil, ...rest } = it;
+            const migrated = { beschreibung: '', ...rest, resStatus: rest.resStatus ?? '' };
+            // Migrate old fields: name → taetigkeit, bauphaseBauteil → bauteil
+            if (!migrated.taetigkeit && name) migrated.taetigkeit = name;
+            if (!migrated.bauteil && bauphaseBauteil) migrated.bauteil = bauphaseBauteil;
+            if (!migrated.fachdienst) migrated.fachdienst = 'Andere';
+            return migrated;
           });
         }
+        if (!Array.isArray(cell?.intervalle)) cell.intervalle = [];
       });
     }
   } catch(e) {}

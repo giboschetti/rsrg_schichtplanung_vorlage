@@ -46,7 +46,7 @@ window.addEventListener('DOMContentLoaded', () => {
   loadFromEmbeddedData();
   loadWorkItemsLS();
   loadStammdaten();
-  setBauphaseBauteile(bauphaseBauteile);
+  setFachdienstBauteile(fachdienstBauteile);
   loadShiftConfig();
   updateHeaderProj();
   initStaticTables();
@@ -66,31 +66,32 @@ window.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter')  confirmAddKW();
     if (e.key === 'Escape') closeModal();
   });
-  document.getElementById('btnAddBauphase')?.addEventListener('click', addBauphaseBauteilFromInput);
-  document.getElementById('sd-bauphase-input')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addBauphaseBauteilFromInput();
-    }
-  });
-  document.getElementById('bauphaseList')?.addEventListener('click', e => {
-    const removeIdx = e.target?.closest?.('[data-bauphase-remove]')?.dataset?.bauphaseRemove;
-    if (removeIdx == null) return;
-    const idx = parseInt(removeIdx, 10);
-    if (Number.isNaN(idx)) return;
-    setBauphaseBauteile(bauphaseBauteile.filter((_, i) => i !== idx));
+  document.getElementById('btnAddBauteil')?.addEventListener('click', () => {
+    const fd = document.getElementById('sd-fachdienst-select')?.value || 'Andere';
+    const bauteil = document.getElementById('sd-bauteil-input')?.value || '';
+    addBauteilToFachdienst(fd, bauteil);
+    const inp = document.getElementById('sd-bauteil-input');
+    if (inp) inp.value = '';
     saveStammdaten();
   });
-  document.getElementById('bauphaseList')?.addEventListener('change', e => {
-    const input = e.target?.closest?.('[data-bauphase-idx]');
-    if (!input) return;
-    const idx = parseInt(input.dataset.bauphaseIdx, 10);
-    if (Number.isNaN(idx)) return;
-    const next = [...bauphaseBauteile];
-    const updatedValue = normalizeBauphaseBauteilValue(input.value || '');
-    if (!updatedValue) next.splice(idx, 1);
-    else next[idx] = updatedValue;
-    setBauphaseBauteile(next);
+  document.getElementById('sd-bauteil-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const fd = document.getElementById('sd-fachdienst-select')?.value || 'Andere';
+      const bauteil = document.getElementById('sd-bauteil-input')?.value || '';
+      addBauteilToFachdienst(fd, bauteil);
+      const inp = document.getElementById('sd-bauteil-input');
+      if (inp) inp.value = '';
+      saveStammdaten();
+    }
+  });
+  document.getElementById('fachdienstBauteilList')?.addEventListener('click', e => {
+    const btn = e.target?.closest?.('[data-fd-remove]');
+    if (!btn) return;
+    const fd = btn.dataset.fdRemove;
+    const idx = parseInt(btn.dataset.fdIdx, 10);
+    if (!fd || Number.isNaN(idx)) return;
+    removeBauteilFromFachdienst(fd, idx);
     saveStammdaten();
   });
   document.getElementById('addKWModal').addEventListener('click', e => {

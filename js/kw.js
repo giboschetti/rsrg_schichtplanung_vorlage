@@ -96,7 +96,7 @@ function bulkAddTypeChanged() {
   document.querySelectorAll('.bulk-add-type-panel').forEach(panel => {
     panel.style.display = panel.dataset.type === type ? '' : 'none';
   });
-  if (type === 'tasks') renderBauphaseBauteilOptions();
+  if (type === 'tasks') renderBulkAddBauteilOptions();
   updateBulkAddPreview();
 }
 
@@ -151,8 +151,9 @@ function collectBulkAddData(section) {
     row.resStatus = (document.getElementById('bulk-inventar-status')?.value || '').trim();
     row.bemerkung = (document.getElementById('bulk-inventar-bemerkung')?.value || '').trim();
   } else if (section === 'tasks') {
-    row.name = (document.getElementById('bulk-tasks-name')?.value || '').trim();
-    row.bauphaseBauteil = normalizeBauphaseBauteilValue(document.getElementById('bulk-tasks-bauphase')?.value || '');
+    row.fachdienst = (document.getElementById('bulk-tasks-fachdienst')?.value || '').trim();
+    row.bauteil = (document.getElementById('bulk-tasks-bauteil')?.value || '').trim();
+    row.taetigkeit = (document.getElementById('bulk-tasks-taetigkeit')?.value || '').trim();
     row.beschreibung = (document.getElementById('bulk-tasks-beschreibung')?.value || '').trim();
     row.location = (document.getElementById('bulk-tasks-location')?.value || '').trim();
     row.resStatus = (document.getElementById('bulk-tasks-status')?.value || '').trim();
@@ -170,7 +171,7 @@ function hasBulkAddRequiredField(section, row) {
   if (section === 'personal') return !!row.name;
   if (section === 'material') return !!row.material;
   if (section === 'inventar') return !!row.geraet;
-  if (section === 'tasks') return !!row.name;
+  if (section === 'tasks') return !!row.taetigkeit;
   if (section === 'fremdleistung') return !!row.firma;
   return false;
 }
@@ -190,7 +191,7 @@ function confirmBulkAdd() {
   const allowedDays = getBulkAddAllowedDays();
   const row = collectBulkAddData(section);
   if (!hasBulkAddRequiredField(section, row)) {
-    const labels = { personal: 'Name', material: 'Material', inventar: 'Gerät/Inventar', tasks: 'Tätigkeit', fremdleistung: 'Firma' };
+    const labels = { personal: 'Name', material: 'Material', inventar: 'Gerät/Inventar', tasks: 'Tätigkeit (Pflichtfeld)', fremdleistung: 'Firma' };
     showToast('Pflichtfeld angeben: ' + (labels[section] || section));
     return;
   }

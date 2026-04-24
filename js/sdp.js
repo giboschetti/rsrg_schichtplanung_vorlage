@@ -140,11 +140,13 @@ function buildSdpRowContextMenu(kwId, dayIdx, shift, section) {
   ];
 }
 
-function sdpTaskBauphaseEditor(cell, onRendered, success) {
-  const current = normalizeBauphaseBauteilValue(cell?.getValue?.() || '');
-  const choices = getBauphaseBauteilOptions();
+function sdpBauteilEditor(cell, onRendered, success) {
+  const row = cell.getRow().getData();
+  const fachdienst = normalizeFachdienst(row?.fachdienst);
+  const choices = getBauteileForFachdienst(fachdienst);
+  const current = String(cell?.getValue?.() || '').trim();
   if (current && !choices.includes(current)) choices.push(current);
-  return sdpNativeSelectEditor(choices, '— Ohne Bauphase/Bauteil —')(cell, onRendered, success);
+  return sdpNativeSelectEditor(choices, '— Ohne Bauteil —')(cell, onRendered, success);
 }
 
 function closeSDP() {
@@ -168,8 +170,9 @@ function initSDPTables(kwId, dayIdx, shift) {
     rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'tasks'),
     columns: [
       sdpDeleteColumn(kwId, dayIdx, shift, 'tasks'),
-      { title: 'Tätigkeit', field: 'name', editor: 'input', widthGrow: 2 },
-      { title: 'Bauphase / Bauteil', field: 'bauphaseBauteil', editor: sdpTaskBauphaseEditor, widthGrow: 1.4 },
+      { title: 'Fachdienst', field: 'fachdienst', editor: sdpNativeSelectEditor(FACHDIENST_VALUES, '— Fachdienst —'), widthGrow: 1 },
+      { title: 'Bauteil', field: 'bauteil', editor: sdpBauteilEditor, widthGrow: 1.2 },
+      { title: 'Tätigkeit', field: 'taetigkeit', editor: 'input', widthGrow: 2 },
       { title: 'Beschreibung', field: 'beschreibung', editor: 'input', widthGrow: 2 },
       { title: 'Bereich / Ort', field: 'location', editor: 'input', widthGrow: 1 },
       sdpResStatusColumn(118),
@@ -237,6 +240,32 @@ function initSDPTables(kwId, dayIdx, shift) {
       { title: 'Leistung',  field: 'leistung', editor: 'input', widthGrow: 2 },
       sdpResStatusColumn(118),
       { title: 'Bemerkung', field: 'bemerkung', editor: 'input', widthGrow: 1 },
+    ],
+  });
+
+  sdpTables.intervalle = new Tabulator('#sdp-tbl-intervalle', {
+    data: getSection(kwId, dayIdx, shift, 'intervalle').map(d => ({...d})),
+    layout: 'fitColumns', height: 'auto', maxHeight: '260px', history: true,
+    rowContextMenu: buildSdpRowContextMenu(kwId, dayIdx, shift, 'intervalle'),
+    cellEdited:  () => saveSDPSection(kwId, dayIdx, shift, 'intervalle'),
+    rowDeleted:  () => saveSDPSection(kwId, dayIdx, shift, 'intervalle'),
+    columns: [
+      sdpDeleteColumn(kwId, dayIdx, shift, 'intervalle'),
+      { title: 'BAB-Nr',   field: 'babNr',   editor: 'input', width: 80 },
+      { title: 'BAB-Datei', field: 'babDatei', editor: 'input', widthGrow: 1 },
+      { title: 'BAB Titel', field: 'babTitel', editor: 'input', widthGrow: 2 },
+      { title: 'Status', field: 'status', width: 160,
+        editor: sdpNativeSelectEditor(SDP_INTERVALLE_STATUS_VALUES) },
+      { title: 'Gleissperrungen', field: 'gleissperrungen', editor: 'input', widthGrow: 1 },
+      { title: 'Fahrleitungsausschaltungen', field: 'fahrleitungsausschaltungen', editor: 'input', widthGrow: 1 },
+      { title: 'Von Datum', field: 'vonDatum', editor: 'input', width: 110,
+        editorParams: { elementAttributes: { type: 'date' } } },
+      { title: 'Von Zeit', field: 'vonZeit', editor: 'input', width: 80,
+        editorParams: { elementAttributes: { type: 'time' } } },
+      { title: 'Bis Datum', field: 'bisDatum', editor: 'input', width: 110,
+        editorParams: { elementAttributes: { type: 'date' } } },
+      { title: 'Bis Zeit', field: 'bisZeit', editor: 'input', width: 80,
+        editorParams: { elementAttributes: { type: 'time' } } },
     ],
   });
 

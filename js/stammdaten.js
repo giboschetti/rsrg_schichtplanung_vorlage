@@ -5,60 +5,81 @@ function updateHeaderProj() {
   if (el) el.textContent = document.getElementById('sd-projektname')?.value || '';
 }
 
-// ─── Bauphase / Bauteil ───────────────────────────────────────────────────────
+// ─── Fachdienst / Bauteil ─────────────────────────────────────────────────────
 
-function setBauphaseBauteile(values) {
-  const seen = new Set();
-  bauphaseBauteile = (Array.isArray(values) ? values : [])
-    .map(normalizeBauphaseBauteilValue)
-    .filter(v => v.length > 0)
-    .filter(v => {
-      const k = v.toLowerCase();
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-  renderBauphaseBauteileList();
-  renderBauphaseBauteilOptions();
+function setFachdienstBauteile(data) {
+  fachdienstBauteile = {};
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return;
+  Object.entries(data).forEach(([fd, arr]) => {
+    if (!Array.isArray(arr)) return;
+    const seen = new Set();
+    fachdienstBauteile[fd] = arr
+      .map(v => String(v || '').trim())
+      .filter(v => v.length > 0)
+      .filter(v => {
+        const k = v.toLowerCase();
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+  });
+  renderFachdienstBauteileList();
+  renderBulkAddBauteilOptions();
 }
 
-function getBauphaseBauteilOptions() {
-  return [...bauphaseBauteile];
+function addBauteilToFachdienst(fachdienst, bauteil) {
+  const v = String(bauteil || '').trim();
+  if (!v) return;
+  if (!fachdienstBauteile[fachdienst]) fachdienstBauteile[fachdienst] = [];
+  const existing = fachdienstBauteile[fachdienst];
+  if (existing.some(e => e.toLowerCase() === v.toLowerCase())) return;
+  existing.push(v);
+  renderFachdienstBauteileList();
+  renderBulkAddBauteilOptions();
 }
 
-function renderBauphaseBauteileList() {
-  const el = document.getElementById('bauphaseList');
+function removeBauteilFromFachdienst(fachdienst, idx) {
+  if (!fachdienstBauteile[fachdienst]) return;
+  fachdienstBauteile[fachdienst].splice(idx, 1);
+  renderFachdienstBauteileList();
+  renderBulkAddBauteilOptions();
+}
+
+function renderFachdienstBauteileList() {
+  const el = document.getElementById('fachdienstBauteilList');
   if (!el) return;
-  if (!bauphaseBauteile.length) {
-    el.innerHTML = '<div class="project-row bauphase-row"><div class="project-meta"><strong>Keine Bauphase/Bauteile definiert.</strong></div></div>';
+  const hasAny = FACHDIENST_VALUES.some(fd => (fachdienstBauteile[fd] || []).length > 0);
+  if (!hasAny) {
+    el.innerHTML = '<div class="project-row bauphase-row"><div class="project-meta"><strong>Keine Bauteile definiert.</strong></div></div>';
     return;
   }
-  el.innerHTML = bauphaseBauteile.map((value, idx) => `
-    <div class="project-row bauphase-row">
-      <div class="project-meta">
-        <input type="text" class="bauphase-input" value="${escAttr(value)}" data-bauphase-idx="${idx}">
-      </div>
-      <button class="btn btn-danger" type="button" data-bauphase-remove="${idx}">✕</button>
-    </div>
-  `).join('');
+  let html = '';
+  FACHDIENST_VALUES.forEach(fd => {
+    const items = fachdienstBauteile[fd] || [];
+    if (!items.length) return;
+    html += `<div class="bauphase-group"><div class="bauphase-group-hdr">${escAttr(fd)}</div>`;
+    items.forEach((bauteil, idx) => {
+      html += `
+        <div class="project-row bauphase-row">
+          <div class="project-meta">${escapeHtmlText(bauteil)}</div>
+          <button class="btn btn-danger" type="button"
+            data-fd-remove="${escAttr(fd)}" data-fd-idx="${idx}">✕</button>
+        </div>`;
+    });
+    html += '</div>';
+  });
+  el.innerHTML = html || '<div class="project-row bauphase-row"><div class="project-meta"><strong>Keine Bauteile definiert.</strong></div></div>';
 }
 
-function renderBauphaseBauteilOptions() {
-  const select = document.getElementById('bulk-tasks-bauphase');
-  if (select) {
-    const current = select.value || '';
-    const opts = ['<option value="">— Ohne Bauphase/Bauteil —</option>']
-      .concat(getBauphaseBauteilOptions().map(v => `<option value="${escAttr(v)}">${escAttr(v)}</option>`));
-    select.innerHTML = opts.join('');
-    if (current && getBauphaseBauteilOptions().includes(current)) select.value = current;
-  }
-}
-
-function addBauphaseBauteilFromInput() {
-  const input = document.getElementById('sd-bauphase-input');
-  const value = normalizeBauphaseBauteilValue(input?.value || '');
-  if (!value) return;
-  setBauphaseBauteile([...bauphaseBauteile, value]);
-  saveStammdaten();
-  if (input) input.value = '';
+function renderBulkAddBauteilOptions() {
+  const bauteilEl = document.getElementById('bulk-tasks-bauteil');
+  if (!bauteilEl) return;
+  const fachdienstEl = document.getElementById('bulk-tasks-fachdienst');
+  const fachdienst = fachdienstEl?.value || '';
+  const options = fachdienst ? getBauteileForFachdienst(fachdienst) : getAllBauteile();
+  const current = bauteilEl.value;
+  bauteilEl.innerHTML = ['<option value="">— Ohne Bauteil —</option>']
+    .concat(options.map(v => `<option value="${escAttr(v)}">${escAttr(v)}</option>`))
+    .join('');
+  if (current && options.includes(current)) bauteilEl.value = current;
 }
