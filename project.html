@@ -10,19 +10,16 @@
   <link href="https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator.min.css" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <style>
-    .tl-toggle-btn {
-      background: none;
-      border: 1px solid var(--border, #d9d3c8);
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 9px;
-      padding: 1px 4px;
-      margin-right: 5px;
-      color: var(--text-muted, #6b6560);
-      line-height: 1.2;
-      vertical-align: middle;
-    }
-    .tl-toggle-btn:hover { background: var(--surface-hover, #f0ece4); }
+    /* Unified single grid */
+    .tl-unified-wrap { overflow-x: auto; }
+    .tl-collapsible-label { cursor: pointer; user-select: none; }
+    .tl-collapsible-label:hover { background: var(--surface-hover, #f0ece4) !important; }
+    .tl-toggle-icon { display: inline-block; font-size: 9px; margin-right: 5px; color: var(--text-muted, #6b6560); }
+    .tl-slot-th.kw-border, .tl-kw-th.kw-border { border-left: 3px solid var(--accent); }
+    .tl-slot-th.day-border, .tl-day-th.day-border { border-left: 1px solid var(--border, #d9d3c8); }
+    .tl-cell.day-border { border-left: 1px solid var(--border, #d9d3c8); }
+    .tl-day-th { cursor: pointer; }
+    .tl-sh-th { cursor: pointer; }
     .tl-agg-badge {
       display: block;
       width: 100%;
@@ -258,9 +255,6 @@
     <!-- Timeline controls -->
     <div class="timeline-bar">
       <div class="tl-left">
-        <div class="zoom-group">
-          <button class="zoom-btn active" data-zoom="shifts">Schichten</button>
-        </div>
         <span class="tl-filter-lbl">Filter:</span>
         <button class="filter-pill active" data-grp="tasks" onclick="toggleTLFilter('tasks',this)">Tätigkeiten</button>
         <button class="filter-pill active" data-grp="personal" onclick="toggleTLFilter('personal',this)">Personal</button>

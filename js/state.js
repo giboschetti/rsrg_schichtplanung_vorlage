@@ -13,7 +13,6 @@ const kwList = []; // [{id, label, num, year, dateFrom, dateTo}]
 // }
 const workItems = {};
 
-let tlZoom = 'shifts';
 const tlFilter = { tasks: true, personal: true, inventar: true, material: true, fremdleistung: true, intervalle: true };
 const tlCollapsed = {};
 let selectedCell = null; // { kwId, dayIdx, shift }

@@ -73,7 +73,7 @@ function tlCellCoordsFromElement(el) {
   const kwIdx = kwList.findIndex(k => k.id === kwId);
   const row = tlGroupIndex(grp);
   if (!kwId || Number.isNaN(dayIdx) || !shift || kwIdx < 0 || row < 0) return null;
-  return { kwId, dayIdx, shift, grp, kwIdx, col: kwIdx * 7 + dayIdx, row };
+  return { kwId, dayIdx, shift, grp, kwIdx, col: kwIdx * 14 + dayIdx * 2 + (shift === 'T' ? 0 : 1), row };
 }
 
 function clearTimelineRangeSelection() {
@@ -108,7 +108,7 @@ function applyTimelineRangeSelectionHighlight() {
   const wrapper = document.getElementById('timelineWrapper');
   if (!wrapper) return;
   wrapper.querySelectorAll('.tl-cell.selected-range').forEach(td => td.classList.remove('selected-range'));
-  if (!tlRangeSelection || tlZoom !== 'shifts') return;
+  if (!tlRangeSelection) return;
   wrapper.querySelectorAll('.tl-cell[data-shift]').forEach(td => {
     const c = tlCellCoordsFromElement(td);
     if (isCoordsInTimelineRange(c, tlRangeSelection)) td.classList.add('selected-range');
@@ -170,8 +170,8 @@ function copyTimelineRangeToClipboard() {
     const grp = TL_GROUPS[row]?.id;
     if (!grp) continue;
     for (let col = tlRangeSelection.colMin; col <= tlRangeSelection.colMax; col++) {
-      const kwIdx = Math.floor(col / 7);
-      const dayIdx = col % 7;
+      const kwIdx = Math.floor(col / 14);
+      const dayIdx = Math.floor((col % 14) / 2);
       const kw = kwList[kwIdx];
       if (!kw) continue;
       cells.push({
@@ -207,7 +207,7 @@ function pasteTimelineRangePayload(rangePayload) {
   const targetRowStart = timelineShiftFocus.grp ? tlGroupIndex(timelineShiftFocus.grp) : rangePayload.rowMin;
   const targetKwIdx = kwList.findIndex(k => k.id === timelineShiftFocus.kwId);
   if (targetKwIdx < 0 || targetRowStart < 0) return false;
-  const targetColStart = targetKwIdx * 7 + timelineShiftFocus.dayIdx;
+  const targetColStart = targetKwIdx * 14 + timelineShiftFocus.dayIdx * 2 + (targetShift === 'T' ? 0 : 1);
 
   let pasted = 0;
   rangePayload.cells.forEach(cell => {
@@ -217,8 +217,8 @@ function pasteTimelineRangePayload(rangePayload) {
     const tCol = targetColStart + colDelta;
     if (tRow < 0 || tRow >= TL_GROUPS.length) return;
     const tGrp = TL_GROUPS[tRow].id;
-    const tKwIdx = Math.floor(tCol / 7);
-    const tDayIdx = tCol % 7;
+    const tKwIdx = Math.floor(tCol / 14);
+    const tDayIdx = Math.floor((tCol % 14) / 2);
     const tKw = kwList[tKwIdx];
     if (!tKw) return;
     const srcSection = Object.keys(cell.sections || {}).find(k => SHIFT_CLIP_SECTIONS.includes(k));

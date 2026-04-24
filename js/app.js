@@ -111,7 +111,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const k = (e.key || '').toLowerCase();
     if (k !== 'c' && k !== 'v') return;
     if (isTimelineClipboardTargetEditable(e.target)) return;
-    if (!isUebersichtPageActive() || tlZoom !== 'shifts') return;
+    if (!isUebersichtPageActive()) return;
     if (k === 'c' && window.getSelection()?.toString()?.trim()) return;
     e.preventDefault();
     if (k === 'c') copyTimelineShiftToClipboard();

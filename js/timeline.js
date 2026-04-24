@@ -55,15 +55,7 @@ function updateStats() {
   /* Statistik-Karten entfernt — Platzhalter für bestehende Aufrufe */
 }
 
-// ─── Timeline Zoom & Filter ───────────────────────────────────────────────────
-
-function setZoom(zoom) {
-  tlZoom = zoom;
-  if (zoom !== 'shifts') clearTimelineRangeSelection();
-  document.querySelectorAll('.zoom-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.zoom === zoom));
-  renderTimeline();
-}
+// ─── Timeline Filter ──────────────────────────────────────────────────────────
 
 function toggleTLFilter(grpId, btn) {
   tlFilter[grpId] = !tlFilter[grpId];
@@ -71,106 +63,85 @@ function toggleTLFilter(grpId, btn) {
   renderTimeline();
 }
 
-function getTlColWidths() {
-  const labelW = 140;
-  const dayW = 80;
-  return { labelW, dayW };
-}
-
 // ─── Timeline HTML builders ───────────────────────────────────────────────────
-
-function buildShiftsHeader(shiftId) {
-  const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
-  const shiftLabel = shiftId === 'T' ? 'Tag' : 'Nacht';
-  let html = '<thead><tr>';
-  html += '<th class="tl-label-th" rowspan="2">Ressource</th>';
-  kwList.forEach(kw => {
-    html += `<th class="tl-kw-th ${sh.cls}" colspan="7">${kw.label} — ${shiftLabel}</th>`;
-  });
-  html += '</tr><tr>';
-  kwList.forEach((kw, ki) => {
-    TL_DAYS.forEach((_, dayIdx) => {
-      const dayT = tlDayPlain(kw, dayIdx);
-      const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-      html += `<th class="tl-slot-th tl-day-th ${sh.cls}${kwBorder}"
-        data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${shiftId}"
-        title="${kw.label} ${dayT} ${shiftId === 'T' ? 'Tag' : 'Nacht'}">${tlDayThHtml(kw, dayIdx)}</th>`;
-    });
-  });
-  html += '</tr></thead>';
-  return html;
-}
-
-function buildResRowForShift(g, shiftId) {
-  const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
-  let html = `<tr class="tl-res-row"><td class="tl-label-td">${g.label}</td>`;
-  kwList.forEach((kw, ki) => {
-    TL_DAYS.forEach((_, dayIdx) => {
-      const items = getSection(kw.id, dayIdx, shiftId, g.section);
-      const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-      html += buildCell(kw.id, dayIdx, shiftId, g, items, sh.cls + kwBorder);
-    });
-  });
-  html += '</tr>';
-  return html;
-}
 
 function toggleTlGroup(groupId) {
   tlCollapsed[groupId] = !tlCollapsed[groupId];
   renderTimeline();
 }
 
-function buildTasksRowsForShift(shiftId) {
-  const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
-  const tasksGroup = { id: 'tasks', label: 'Tätigkeiten', section: 'tasks' };
-  const collapsed = !!tlCollapsed['tasks'];
-  const toggleIcon = collapsed ? '▶' : '▼';
-
-  // Parent row
-  let html = `<tr class="tl-res-row tl-tasks-parent-row">`;
-  html += `<td class="tl-label-td tl-tasks-parent">`;
-  html += `<button class="tl-toggle-btn" onclick="toggleTlGroup('tasks')">${toggleIcon}</button>`;
-  html += `Tätigkeiten</td>`;
+function buildSimpleRow(g) {
+  let html = `<tr class="tl-res-row"><td class="tl-label-td">${g.label}</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-      const attrs = `data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${shiftId}" data-grp="tasks"`;
-      if (collapsed) {
-        const count = getSection(kw.id, dayIdx, shiftId, 'tasks').length;
-        const badge = count > 0 ? `<span class="tl-agg-badge">${count}</span>` : '';
-        html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary" ${attrs}>${badge}</td>`;
-      } else {
-        html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary" ${attrs}></td>`;
-      }
+      const dayBorder = dayIdx > 0 && !kwBorder ? ' day-border' : '';
+      TL_SHIFTS.forEach((sh, si) => {
+        const items = getSection(kw.id, dayIdx, sh.id, g.section);
+        const borderCls = si === 0 ? (kwBorder || dayBorder) : '';
+        html += buildCell(kw.id, dayIdx, sh.id, g, items, sh.cls + borderCls);
+      });
+    });
+  });
+  html += '</tr>';
+  return html;
+}
+
+function buildTasksRows() {
+  const tasksGroup = { id: 'tasks', label: 'Tätigkeiten', section: 'tasks' };
+  const collapsed = !!tlCollapsed['tasks'];
+  const icon = collapsed ? '▶' : '▼';
+
+  let html = `<tr class="tl-res-row tl-tasks-parent-row">`;
+  html += `<td class="tl-label-td tl-collapsible-label" onclick="toggleTlGroup('tasks')"><span class="tl-toggle-icon">${icon}</span>Tätigkeiten</td>`;
+  kwList.forEach((kw, ki) => {
+    TL_DAYS.forEach((_, dayIdx) => {
+      const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+      const dayBorder = dayIdx > 0 && !kwBorder ? ' day-border' : '';
+      TL_SHIFTS.forEach((sh, si) => {
+        const borderCls = si === 0 ? (kwBorder || dayBorder) : '';
+        const attrs = `data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${sh.id}" data-grp="tasks"`;
+        if (collapsed) {
+          const count = getSection(kw.id, dayIdx, sh.id, 'tasks').length;
+          const badge = count > 0 ? `<span class="tl-agg-badge">${count}</span>` : '';
+          html += `<td class="tl-cell ${sh.cls}${borderCls} tl-cell-parent-summary" ${attrs}>${badge}</td>`;
+        } else {
+          html += `<td class="tl-cell ${sh.cls}${borderCls} tl-cell-parent-summary" ${attrs}></td>`;
+        }
+      });
     });
   });
   html += '</tr>';
 
   if (!collapsed) {
-    const fachdienste = getUsedFachdienste();
-    fachdienste.forEach(fachdienst => {
-      // Level-1: Fachdienst child row
+    getUsedFachdienste().forEach(fachdienst => {
       html += `<tr class="tl-res-row tl-tasks-child-row">`;
       html += `<td class="tl-label-td tl-label-td-child">${escapeHtmlText(fachdienst)}</td>`;
       kwList.forEach((kw, ki) => {
         TL_DAYS.forEach((_, dayIdx) => {
           const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-          html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary"
-            data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${shiftId}" data-grp="tasks"></td>`;
+          const dayBorder = dayIdx > 0 && !kwBorder ? ' day-border' : '';
+          TL_SHIFTS.forEach((sh, si) => {
+            const borderCls = si === 0 ? (kwBorder || dayBorder) : '';
+            html += `<td class="tl-cell ${sh.cls}${borderCls} tl-cell-parent-summary"
+              data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${sh.id}" data-grp="tasks"></td>`;
+          });
         });
       });
       html += '</tr>';
 
-      // Level-2: Bauteil grandchild rows
-      const bauteile = getBauteileForFachdienstInUse(fachdienst);
-      bauteile.forEach(bauteil => {
+      getBauteileForFachdienstInUse(fachdienst).forEach(bauteil => {
         html += `<tr class="tl-res-row tl-tasks-grandchild-row">`;
         html += `<td class="tl-label-td tl-label-td-grandchild">${escapeHtmlText(bauteil)}</td>`;
         kwList.forEach((kw, ki) => {
           TL_DAYS.forEach((_, dayIdx) => {
-            const items = getTaskItemsByFachdienstBauteil(kw.id, dayIdx, shiftId, fachdienst, bauteil);
             const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-            html += buildCell(kw.id, dayIdx, shiftId, tasksGroup, items, sh.cls + kwBorder);
+            const dayBorder = dayIdx > 0 && !kwBorder ? ' day-border' : '';
+            TL_SHIFTS.forEach((sh, si) => {
+              const items = getTaskItemsByFachdienstBauteil(kw.id, dayIdx, sh.id, fachdienst, bauteil);
+              const borderCls = si === 0 ? (kwBorder || dayBorder) : '';
+              html += buildCell(kw.id, dayIdx, sh.id, tasksGroup, items, sh.cls + borderCls);
+            });
           });
         });
         html += '</tr>';
@@ -181,99 +152,51 @@ function buildTasksRowsForShift(shiftId) {
   return html;
 }
 
-function buildPersonalRowsForShift(shiftId) {
-  const sh = TL_SHIFTS.find(s => s.id === shiftId) || { cls: shiftId === 'T' ? 'sh-t' : 'sh-n' };
+function buildPersonalRows() {
   const personalGroup = { id: 'personal', label: 'Personal', section: 'personal' };
-  const functions = getUsedPersonalFunctions();
   const collapsed = !!tlCollapsed['personal'];
-  const toggleIcon = collapsed ? '▶' : '▼';
+  const icon = collapsed ? '▶' : '▼';
 
   let html = `<tr class="tl-res-row tl-personal-parent-row">`;
-  html += `<td class="tl-label-td tl-personal-parent">`;
-  html += `<button class="tl-toggle-btn" onclick="toggleTlGroup('personal')">${toggleIcon}</button>`;
-  html += `Personal</td>`;
+  html += `<td class="tl-label-td tl-collapsible-label" onclick="toggleTlGroup('personal')"><span class="tl-toggle-icon">${icon}</span>Personal</td>`;
   kwList.forEach((kw, ki) => {
     TL_DAYS.forEach((_, dayIdx) => {
       const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-      const attrs = `data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${shiftId}" data-grp="personal"`;
-      if (collapsed) {
-        const count = getSection(kw.id, dayIdx, shiftId, 'personal').length;
-        const badge = count > 0 ? `<span class="tl-agg-badge">${count}</span>` : '';
-        html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary" ${attrs}>${badge}</td>`;
-      } else {
-        html += `<td class="tl-cell ${sh.cls}${kwBorder} tl-cell-parent-summary" ${attrs}></td>`;
-      }
+      const dayBorder = dayIdx > 0 && !kwBorder ? ' day-border' : '';
+      TL_SHIFTS.forEach((sh, si) => {
+        const borderCls = si === 0 ? (kwBorder || dayBorder) : '';
+        const attrs = `data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${sh.id}" data-grp="personal"`;
+        if (collapsed) {
+          const count = getSection(kw.id, dayIdx, sh.id, 'personal').length;
+          const badge = count > 0 ? `<span class="tl-agg-badge">${count}</span>` : '';
+          html += `<td class="tl-cell ${sh.cls}${borderCls} tl-cell-parent-summary" ${attrs}>${badge}</td>`;
+        } else {
+          html += `<td class="tl-cell ${sh.cls}${borderCls} tl-cell-parent-summary" ${attrs}></td>`;
+        }
+      });
     });
   });
   html += '</tr>';
 
   if (!collapsed) {
-    functions.forEach(funktion => {
-      html += `<tr class="tl-res-row tl-personal-child-row"><td class="tl-label-td tl-label-td-child">${escapeHtmlText(funktion)}</td>`;
+    getUsedPersonalFunctions().forEach(funktion => {
+      html += `<tr class="tl-res-row tl-personal-child-row">`;
+      html += `<td class="tl-label-td tl-label-td-child">${escapeHtmlText(funktion)}</td>`;
       kwList.forEach((kw, ki) => {
         TL_DAYS.forEach((_, dayIdx) => {
-          const items = getPersonalItemsByFunction(kw.id, dayIdx, shiftId, funktion);
           const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-          html += buildCell(kw.id, dayIdx, shiftId, personalGroup, items, sh.cls + kwBorder);
+          const dayBorder = dayIdx > 0 && !kwBorder ? ' day-border' : '';
+          TL_SHIFTS.forEach((sh, si) => {
+            const items = getPersonalItemsByFunction(kw.id, dayIdx, sh.id, funktion);
+            const borderCls = si === 0 ? (kwBorder || dayBorder) : '';
+            html += buildCell(kw.id, dayIdx, sh.id, personalGroup, items, sh.cls + borderCls);
+          });
         });
       });
       html += '</tr>';
     });
   }
 
-  return html;
-}
-
-function getGroupItemsForCell(kw, dayIdx, shift, g, zoom) {
-  if (zoom === 'shifts') {
-    return getSection(kw.id, dayIdx, shift, g.section);
-  } else if (zoom === 'days') {
-    return [
-      ...getSection(kw.id, dayIdx, 'T', g.section),
-      ...getSection(kw.id, dayIdx, 'N', g.section),
-    ];
-  } else {
-    let items = [];
-    for (let d = 0; d < 7; d++) {
-      TL_SHIFTS.forEach(sh => {
-        items.push(...getSection(kw.id, d, sh.id, g.section));
-      });
-    }
-    return items;
-  }
-}
-
-function buildResRow(g, zoom) {
-  let html = `<tr class="tl-res-row">
-    <td class="tl-label-td">${g.label}</td>`;
-
-  if (zoom === 'shifts') {
-    kwList.forEach((kw, ki) => {
-      TL_DAYS.forEach((d, dayIdx) => {
-        TL_SHIFTS.forEach(sh => {
-          const items = getGroupItemsForCell(kw, dayIdx, sh.id, g, zoom);
-          const kwBorder = ki > 0 && dayIdx === 0 && sh.id === 'T' ? ' kw-border' : '';
-          html += buildCell(kw.id, dayIdx, sh.id, g, items, sh.cls + kwBorder);
-        });
-      });
-    });
-  } else if (zoom === 'days') {
-    kwList.forEach((kw, ki) => {
-      TL_DAYS.forEach((d, dayIdx) => {
-        const items = getGroupItemsForCell(kw, dayIdx, null, g, zoom);
-        const kwBorder = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
-        html += buildCell(kw.id, dayIdx, null, g, items, kwBorder);
-      });
-    });
-  } else {
-    kwList.forEach((kw, ki) => {
-      const items = getGroupItemsForCell(kw, null, null, g, zoom);
-      const kwBorder = ki > 0 ? ' kw-border' : '';
-      html += buildCell(kw.id, null, null, g, items, kwBorder);
-    });
-  }
-
-  html += '</tr>';
   return html;
 }
 
@@ -289,12 +212,6 @@ function buildCell(kwId, dayIdx, shift, g, items, extraCls) {
   return `<td class="tl-cell ${extraCls}" ${attrs}>${blocks}${more}</td>`;
 }
 
-function calcColCount() {
-  if (tlZoom === 'weeks') return kwList.length;
-  if (tlZoom === 'days')  return kwList.length * 7;
-  return kwList.length * 14;
-}
-
 // ─── Render Timeline ──────────────────────────────────────────────────────────
 
 function renderTimeline() {
@@ -306,109 +223,79 @@ function renderTimeline() {
     return;
   }
 
-  const zoom = tlZoom;
+  const labelW = 140;
+  const shiftW = 80;
+  const totalShiftCols = kwList.length * 14;
 
-  if (zoom === 'shifts') {
-    const { labelW, dayW } = getTlColWidths();
-    const colCount = kwList.length * 7;
-    let colgroup = '<colgroup><col style="width:' + labelW + 'px">';
-    for (let i = 0; i < colCount; i++) colgroup += '<col style="width:' + dayW + 'px">';
-    colgroup += '</colgroup>';
+  let colgroup = `<colgroup><col style="width:${labelW}px">`;
+  for (let i = 0; i < totalShiftCols; i++) colgroup += `<col style="width:${shiftW}px">`;
+  colgroup += '</colgroup>';
 
-    let html = '<div class="tl-dual-grid">';
+  // 3-row thead
+  let thead = '<thead>';
 
-    // Day (Tag) grid
-    html += '<div class="tl-grid-day"><div class="tl-cat-stack">';
-    html += '<div class="tl-timeline-card tl-timeline-header-card">';
-    html += '<table class="tl-table tl-table-day tl-header-table" style="table-layout:fixed">' + colgroup + buildShiftsHeader('T') + '</table>';
-    html += '</div>';
-    TL_GROUPS.forEach(g => {
-      if (!tlFilter[g.id]) return;
-      let rows = '';
-      if (g.id === 'personal') rows = buildPersonalRowsForShift('T');
-      else if (g.id === 'tasks') rows = buildTasksRowsForShift('T');
-      else rows = buildResRowForShift(g, 'T');
+  // Row 1: label (rowspan=3) + KW banners (colspan=14)
+  thead += '<tr><th class="tl-label-th" rowspan="3">Ressource</th>';
+  kwList.forEach((kw, ki) => {
+    const kwBorderCls = ki > 0 ? ' kw-border' : '';
+    thead += `<th class="tl-kw-th${kwBorderCls}" colspan="14">${kw.label}</th>`;
+  });
+  thead += '</tr>';
 
-      html += '<div class="tl-timeline-card tl-category-card">';
-      html += '<table class="tl-table tl-table-day tl-cat-table" style="table-layout:fixed">' + colgroup + '<tbody>' + rows + '</tbody></table>';
-      html += '</div>';
+  // Row 2: day headers (colspan=2)
+  thead += '<tr>';
+  kwList.forEach((kw, ki) => {
+    TL_DAYS.forEach((_, dayIdx) => {
+      const kwBorderCls = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+      const dayBorderCls = dayIdx > 0 && !kwBorderCls ? ' day-border' : '';
+      thead += `<th class="tl-slot-th tl-day-th${kwBorderCls}${dayBorderCls}" colspan="2"
+        data-kw="${kw.id}" data-day="${dayIdx}">${tlDayThHtml(kw, dayIdx)}</th>`;
     });
-    html += '</div></div>';
+  });
+  thead += '</tr>';
 
-    // Night (Nacht) grid
-    html += '<div class="tl-grid-night"><div class="tl-cat-stack">';
-    html += '<div class="tl-timeline-card tl-timeline-header-card">';
-    html += '<table class="tl-table tl-table-night tl-header-table" style="table-layout:fixed">' + colgroup + buildShiftsHeader('N') + '</table>';
-    html += '</div>';
-    TL_GROUPS.forEach(g => {
-      if (!tlFilter[g.id]) return;
-      let rows = '';
-      if (g.id === 'personal') rows = buildPersonalRowsForShift('N');
-      else if (g.id === 'tasks') rows = buildTasksRowsForShift('N');
-      else rows = buildResRowForShift(g, 'N');
-
-      html += '<div class="tl-timeline-card tl-category-card">';
-      html += '<table class="tl-table tl-table-night tl-cat-table" style="table-layout:fixed">' + colgroup + '<tbody>' + rows + '</tbody></table>';
-      html += '</div>';
+  // Row 3: T/N shift headers
+  thead += '<tr>';
+  kwList.forEach((kw, ki) => {
+    TL_DAYS.forEach((_, dayIdx) => {
+      const kwBorderCls = ki > 0 && dayIdx === 0 ? ' kw-border' : '';
+      const dayBorderCls = dayIdx > 0 && !kwBorderCls ? ' day-border' : '';
+      TL_SHIFTS.forEach((sh, si) => {
+        const borderCls = si === 0 ? (kwBorderCls || dayBorderCls) : '';
+        thead += `<th class="tl-slot-th tl-sh-th ${sh.cls}${borderCls}"
+          data-kw="${kw.id}" data-day="${dayIdx}" data-shift="${sh.id}">${sh.label}</th>`;
+      });
     });
-    html += '</div></div></div>';
+  });
+  thead += '</tr></thead>';
 
-    wrapper.innerHTML = html;
-  } else {
-    let html = '<table class="tl-table"><thead>';
+  // tbody
+  let tbody = '<tbody>';
+  TL_GROUPS.forEach(g => {
+    if (!tlFilter[g.id]) return;
+    if (g.id === 'tasks') tbody += buildTasksRows();
+    else if (g.id === 'personal') tbody += buildPersonalRows();
+    else tbody += buildSimpleRow(g);
+  });
+  tbody += '</tbody>';
 
-    if (zoom === 'days') {
-      html += '<tr>';
-      html += '<th class="tl-label-th" rowspan="2">Ressource</th>';
-      kwList.forEach(kw => {
-        html += `<th class="tl-kw-th" colspan="7">${kw.label}</th>`;
-      });
-      html += '</tr>';
-      html += '<tr>';
-      kwList.forEach(kw => {
-        TL_DAYS.forEach((_, dayIdx) => {
-          const dayT = tlDayPlain(kw, dayIdx);
-          html += `<th class="tl-slot-th drill tl-day-hdr"
-            data-kw="${kw.id}" data-day="${dayIdx}"
-            title="${kw.label} ${dayT} – klicken für Schichtenansicht">${tlDayThHtml(kw, dayIdx)}</th>`;
-        });
-      });
-      html += '</tr>';
-    } else { // weeks
-      html += '<tr>';
-      html += '<th class="tl-label-th">Ressource</th>';
-      kwList.forEach(kw => {
-        html += `<th class="tl-slot-th drill" data-kw="${kw.id}"
-          title="${kw.label} – klicken für Tagesansicht">${kw.label}</th>`;
-      });
-      html += '</tr>';
-    }
+  wrapper.innerHTML = `<div class="tl-unified-wrap"><table class="tl-table tl-unified" style="table-layout:fixed">${colgroup}${thead}${tbody}</table></div>`;
 
-    html += '</thead><tbody>';
-    TL_GROUPS.forEach(g => {
-      if (!tlFilter[g.id]) return;
-      html += buildResRow(g, zoom);
-    });
-    html += '</tbody></table>';
-    wrapper.innerHTML = html;
-  }
-
-  // Drill-down on slot headers
-  wrapper.querySelectorAll('.tl-slot-th.drill').forEach(th => {
+  // Day header click → open SDP (Tag shift)
+  wrapper.querySelectorAll('.tl-day-th[data-kw]').forEach(th => {
     th.addEventListener('click', () => {
-      if (zoom === 'weeks') setZoom('days');
-      else if (zoom === 'days') setZoom('shifts');
+      openSDP(th.dataset.kw, parseInt(th.dataset.day), 'T', null);
     });
   });
 
-  // Day header click → open SDP for whole shift
-  wrapper.querySelectorAll('.tl-slot-th.tl-day-th[data-shift]').forEach(th => {
+  // Shift header click → open SDP
+  wrapper.querySelectorAll('.tl-sh-th[data-shift]').forEach(th => {
     th.addEventListener('click', () => {
       openSDP(th.dataset.kw, parseInt(th.dataset.day), th.dataset.shift, null);
     });
   });
 
-  // Cell click → open SDP for single resource
+  // Cell click → open SDP or range select
   wrapper.querySelectorAll('.tl-cell[data-shift]').forEach(td => {
     td.addEventListener('click', (event) => {
       const coords = tlCellCoordsFromElement(td);
@@ -424,15 +311,9 @@ function renderTimeline() {
       openSDP(td.dataset.kw, parseInt(td.dataset.day), td.dataset.shift, td.dataset.grp || null);
     });
   });
-  wrapper.querySelectorAll('.tl-cell:not([data-shift])').forEach(td => {
-    td.addEventListener('click', () => {
-      if (zoom === 'days') setZoom('shifts');
-      else if (zoom === 'weeks') setZoom('days');
-    });
-  });
 
   // Re-apply selected highlight
-  if (selectedCell && zoom === 'shifts') {
+  if (selectedCell) {
     if (selectedCell.grp) {
       wrapper.querySelectorAll(
         `.tl-cell[data-kw="${selectedCell.kwId}"][data-day="${selectedCell.dayIdx}"][data-shift="${selectedCell.shift}"][data-grp="${selectedCell.grp}"]`
