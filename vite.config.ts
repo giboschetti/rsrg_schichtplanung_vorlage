@@ -16,5 +16,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-table': ['@tanstack/react-table', '@tanstack/react-virtual'],
+          'vendor-state': ['zustand'],
+          'vendor-export': ['xlsx', 'jspdf', 'jspdf-autotable'],
+        },
+      },
+    },
   },
 });

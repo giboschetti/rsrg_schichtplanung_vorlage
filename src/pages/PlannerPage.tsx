@@ -1,24 +1,29 @@
 import { useParams } from 'react-router-dom';
 import { AppHeader } from '@/components/AppHeader';
 import { ToastContainer } from '@/components/Toast';
+import { ShiftDetailPanel } from '@/components/sdp/ShiftDetailPanel';
+import { TimelineGrid } from '@/components/timeline/TimelineGrid';
+import { TimelineFilterBar, KwToolbar } from '@/components/timeline/TimelineControls';
 import { useProject } from '@/hooks/useProject';
 import { useUiStore } from '@/stores/uiStore';
+import { StammdatenPanel } from '@/components/StammdatenPanel';
 
-// Lazy-loaded tab content — implemented in later units
 function UebersichtTab() {
   return (
-    <div style={{ padding: 24, color: '#71717a', fontSize: 14 }}>
-      Timeline wird geladen…
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16, gap: 12, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <KwToolbar />
+      </div>
+      <TimelineFilterBar />
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <TimelineGrid />
+      </div>
     </div>
   );
 }
 
 function StammdatenTab() {
-  return (
-    <div style={{ padding: 24, color: '#71717a', fontSize: 14 }}>
-      Stammdaten werden geladen…
-    </div>
-  );
+  return <StammdatenPanel />;
 }
 
 const TABS = [
@@ -90,6 +95,7 @@ export default function PlannerPage() {
         {activeTab === 'stammdaten' && <StammdatenTab />}
       </div>
 
+      <ShiftDetailPanel />
       <ToastContainer />
     </div>
   );
