@@ -12,6 +12,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { extractProjectSnapshot } from '@/lib/mergeFirestoreSnapshot';
 import type { Project, ProjectSnapshot } from '@/types';
 
 const PROJECTS_COL = 'projects';
@@ -34,9 +35,18 @@ export async function createProject(name: string, uid: string): Promise<Project>
     snapshot: {
       kwList: [],
       workItems: {},
+      mitarbeiter: [],
       stammdaten: {
         fachdienstBauteile: {},
         shiftConfig: { tag: { von: '07:00', bis: '19:00' }, nacht: { von: '19:00', bis: '07:00' } },
+        projektname: name,
+        projektnummer: '',
+        auftraggeber: '',
+        bauleiter: '',
+        polier: '',
+        standort: '',
+        baubeginn: '',
+        bauende: '',
       },
     } satisfies ProjectSnapshot,
   };
@@ -50,7 +60,21 @@ export async function loadProject(projectId: string): Promise<Project | null> {
   const ref = doc(db, PROJECTS_COL, projectId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Project;
+  const d = snap.data() as Record<string, unknown>;
+  const cr = d.createdAt;
+  const createdAt =
+    typeof cr === 'string'
+      ? cr
+      : cr instanceof Timestamp
+        ? cr.toDate().toISOString()
+        : new Date().toISOString();
+  return {
+    id: snap.id,
+    name: String(d.name ?? 'Projekt'),
+    ownerId: String(d.ownerId ?? ''),
+    createdAt,
+    snapshot: extractProjectSnapshot(d),
+  } as Project;
 }
 
 // ─── Save project snapshot ──────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { AppHeader } from '@/components/AppHeader';
 import { ToastContainer } from '@/components/Toast';
@@ -10,12 +11,15 @@ import { StammdatenPanel } from '@/components/StammdatenPanel';
 
 function UebersichtTab() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16, gap: 12, overflow: 'hidden' }}>
+    <div
+      className="min-w-0"
+      style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, padding: 16, gap: 12, overflow: 'hidden' }}
+    >
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <KwToolbar />
       </div>
       <TimelineFilterBar />
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <TimelineGrid />
       </div>
     </div>
@@ -23,7 +27,14 @@ function UebersichtTab() {
 }
 
 function StammdatenTab() {
-  return <StammdatenPanel />;
+  return (
+    <div
+      className="min-w-0"
+      style={{ flex: 1, minHeight: 0, overflow: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}
+    >
+      <StammdatenPanel />
+    </div>
+  );
 }
 
 const TABS = [
@@ -36,6 +47,10 @@ export default function PlannerPage() {
   const { loading, error, save, saving } = useProject(projectId);
   const activeTab = useUiStore((s) => s.activeTab);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
+
+  useEffect(() => {
+    setActiveTab('uebersicht');
+  }, [projectId, setActiveTab]);
 
   if (loading) {
     return (
@@ -54,7 +69,15 @@ export default function PlannerPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f8f8f9' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        minHeight: 0,
+        background: '#f8f8f9',
+      }}
+    >
       <AppHeader onSave={save} saving={saving} />
 
       {/* Tab bar */}
@@ -89,8 +112,8 @@ export default function PlannerPage() {
         ))}
       </div>
 
-      {/* Tab content */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      {/* Tab content: minHeight:0 + minW-0 so children can shrink and scroll (flex overflow quirk) */}
+      <div className="min-w-0" style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
         {activeTab === 'uebersicht' && <UebersichtTab />}
         {activeTab === 'stammdaten' && <StammdatenTab />}
       </div>

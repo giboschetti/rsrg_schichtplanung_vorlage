@@ -8,7 +8,6 @@ import {
   type Column,
   flexRender,
 } from '@tanstack/react-table';
-import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import { usePlannerStore } from '@/stores/plannerStore';
 import { useStammdatenStore } from '@/stores/stammdatenStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -240,23 +239,15 @@ export function TimelineGrid() {
     getExpandedRowModel: getExpandedRowModel(),
   });
 
-  // ─── Column virtualizer ──────────────────────────────────────────
+  // All shift columns are rendered (horizontal virtualizer was empty when flex gave the scroller width 0).
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const allCols = table.getAllColumns();
   const shiftCols = allCols.slice(1) as Column<TlRowMeta>[];
 
-  const colVirtualizer = useVirtualizer({
-    count: shiftCols.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 88,
-    horizontal: true,
-    overscan: 4,
-  });
-
-  const virtualCols = colVirtualizer.getVirtualItems();
-  const totalColWidth = colVirtualizer.getTotalSize();
   const labelColWidth = 160;
+  const shiftColWidth = 88;
+  const totalColWidth = shiftCols.length * shiftColWidth;
 
   if (!kwList.length) {
     return (
@@ -275,6 +266,9 @@ export function TimelineGrid() {
         borderRadius: 8,
         background: '#fff',
         flex: 1,
+        minWidth: 0,
+        minHeight: 0,
+        width: '100%',
       }}
     >
       <table
@@ -284,21 +278,15 @@ export function TimelineGrid() {
           minWidth: labelColWidth + totalColWidth,
         }}
       >
-        <TimelineThead
-          kwList={kwList}
-          virtualCols={virtualCols}
-          labelColWidth={labelColWidth}
-          totalColWidth={totalColWidth}
-        />
+        <TimelineThead kwList={kwList} labelColWidth={labelColWidth} />
         <tbody>
           {table.getRowModel().rows.map((row) => (
             <TlBodyRow
               key={row.id}
               row={row}
-              virtualCols={virtualCols}
               shiftCols={shiftCols}
               labelColWidth={labelColWidth}
-              totalColWidth={totalColWidth}
+              shiftColWidth={shiftColWidth}
             />
           ))}
         </tbody>
@@ -311,25 +299,20 @@ export function TimelineGrid() {
 
 function TlBodyRow({
   row,
-  virtualCols,
   shiftCols,
   labelColWidth,
-  totalColWidth,
+  shiftColWidth,
 }: {
   row: Row<TlRowMeta>;
-  virtualCols: VirtualItem[];
   shiftCols: Column<TlRowMeta>[];
   labelColWidth: number;
-  totalColWidth: number;
+  shiftColWidth: number;
 }) {
   const meta = row.original;
   const isParent = meta.kind === 'group-header';
   const isL1 = meta.kind === 'fachdienst';
 
   const labelCell = row.getVisibleCells().find((c) => c.column.id === 'label');
-  const last = virtualCols.length > 0 ? virtualCols[virtualCols.length - 1] : null;
-  const trailWidth = last ? totalColWidth - (last.start + last.size) : 0;
-  const leadWidth = virtualCols.length > 0 ? virtualCols[0].start : 0;
 
   const bgColor = isParent ? '#f4f4f5' : isL1 ? '#fafafa' : '#fff';
 
@@ -349,20 +332,14 @@ function TlBodyRow({
         {labelCell ? flexRender(labelCell.column.columnDef.cell, labelCell.getContext()) : null}
       </td>
 
-      {leadWidth > 0 && (
-        <td style={{ width: leadWidth, padding: 0, borderBottom: '1px solid #e4e4e7' }} />
-      )}
-
-      {virtualCols.map((vc) => {
-        const col = shiftCols[vc.index];
-        if (!col) return null;
+      {shiftCols.map((col) => {
         const cell = row.getVisibleCells().find((c) => c.column.id === col.id);
         if (!cell) return null;
         return (
           <td
-            key={String(vc.key)}
+            key={col.id}
             style={{
-              width: vc.size,
+              width: shiftColWidth,
               padding: 0,
               borderBottom: '1px solid #e4e4e7',
               borderRight: '1px solid #f0f0f0',
@@ -374,10 +351,6 @@ function TlBodyRow({
           </td>
         );
       })}
-
-      {trailWidth > 0 && (
-        <td style={{ width: trailWidth, padding: 0, borderBottom: '1px solid #e4e4e7' }} />
-      )}
     </tr>
   );
 }
@@ -462,40 +435,15 @@ function TlCell({
 
 // ─── Custom 3-row thead ──────────────────────────────────────────────────────
 
-interface ColMeta {
-  kwId: string;
-  kwLabel: string;
-  dayIdx: number;
-  shift: ShiftId;
-}
+const COLS_PER_KW = TL_DAYS.length * TL_SHIFTS.length;
 
 function TimelineThead({
   kwList,
-  virtualCols,
   labelColWidth,
-  totalColWidth,
 }: {
   kwList: KalenderWoche[];
-  virtualCols: VirtualItem[];
   labelColWidth: number;
-  totalColWidth: number;
 }) {
-  const colMeta: ColMeta[] = useMemo(() => {
-    const result: ColMeta[] = [];
-    kwList.forEach((kw) => {
-      TL_DAYS.forEach((_, dayIdx) => {
-        TL_SHIFTS.forEach((sh) => {
-          result.push({ kwId: kw.id, kwLabel: kw.label, dayIdx, shift: sh.id as ShiftId });
-        });
-      });
-    });
-    return result;
-  }, [kwList]);
-
-  const last = virtualCols.length > 0 ? virtualCols[virtualCols.length - 1] : null;
-  const trailWidth = last ? totalColWidth - (last.start + last.size) : 0;
-  const leadWidth = virtualCols.length > 0 ? virtualCols[0].start : 0;
-
   return (
     <thead>
       {/* Row 1: KW banners */}
@@ -511,52 +459,32 @@ function TimelineThead({
         >
           Ressource
         </th>
-        {leadWidth > 0 && <th rowSpan={3} style={{ width: leadWidth }} />}
-        {(() => {
-          // Group virtualCols by KW
-          const kwGroups: { kwId: string; kwLabel: string; vcs: VirtualItem[] }[] = [];
-          virtualCols.forEach((vc) => {
-            const cm = colMeta[vc.index];
-            if (!cm) return;
-            const existing = kwGroups.find((g) => g.kwId === cm.kwId);
-            if (existing) existing.vcs.push(vc);
-            else kwGroups.push({ kwId: cm.kwId, kwLabel: cm.kwLabel, vcs: [vc] });
-          });
-          return kwGroups.map((g, i) => (
-            <th
-              key={g.kwId}
-              colSpan={g.vcs.length}
-              style={{
-                textAlign: 'center', fontSize: 11, fontWeight: 700,
-                padding: '4px 8px', borderBottom: '1px solid #e4e4e7',
-                borderLeft: i > 0 ? '2px solid #e4e4e7' : undefined,
-                fontFamily: 'Space Grotesk, sans-serif',
-                background: '#f4f4f5',
-              }}
-            >
-              {g.kwLabel}
-            </th>
-          ));
-        })()}
-        {trailWidth > 0 && <th rowSpan={3} style={{ width: trailWidth }} />}
+        {kwList.map((kw, i) => (
+          <th
+            key={kw.id}
+            colSpan={COLS_PER_KW}
+            style={{
+              textAlign: 'center', fontSize: 11, fontWeight: 700,
+              padding: '4px 8px', borderBottom: '1px solid #e4e4e7',
+              borderLeft: i > 0 ? '2px solid #e4e4e7' : undefined,
+              fontFamily: 'Space Grotesk, sans-serif',
+              background: '#f4f4f5',
+            }}
+          >
+            {kw.label}
+          </th>
+        ))}
       </tr>
 
       {/* Row 2: Day headers */}
       <tr style={{ background: '#fafafa' }}>
-        {(() => {
-          const dayHeaders: { vc: VirtualItem; cm: ColMeta }[] = [];
-          virtualCols.forEach((vc) => {
-            const cm = colMeta[vc.index];
-            if (!cm || vc.index % 2 !== 0) return;
-            dayHeaders.push({ vc, cm });
-          });
-          return dayHeaders.map(({ vc, cm }) => {
-            const kw = kwList.find((k) => k.id === cm.kwId);
-            const { day, date } = tlDayHeader(kw, cm.dayIdx);
-            const isKwStart = vc.index % 14 === 0;
+        {kwList.flatMap((kw) =>
+          TL_DAYS.map((_, dayIdx) => {
+            const { day, date } = tlDayHeader(kw, dayIdx);
+            const isKwStart = dayIdx === 0;
             return (
               <th
-                key={String(vc.key)}
+                key={`${kw.id}-day-${dayIdx}`}
                 colSpan={2}
                 style={{
                   textAlign: 'center', fontSize: 10, padding: '3px 4px',
@@ -569,30 +497,34 @@ function TimelineThead({
                 {date && <span style={{ color: '#71717a', marginLeft: 3 }}>{date}</span>}
               </th>
             );
-          });
-        })()}
+          }),
+        )}
       </tr>
 
       {/* Row 3: T/N shift headers */}
       <tr style={{ background: '#fff' }}>
-        {virtualCols.map((vc) => {
-          const cm = colMeta[vc.index];
-          if (!cm) return null;
-          const isKwStart = vc.index % 14 === 0;
-          const isDayStart = vc.index % 2 === 0;
-          return (
-            <th
-              key={String(vc.key)}
-              style={{
-                textAlign: 'center', fontSize: 9, fontWeight: 600, padding: '2px',
-                borderBottom: '2px solid #e4e4e7',
-                borderLeft: isKwStart ? '2px solid #e4e4e7' : isDayStart ? '1px solid #f0f0f0' : 'none',
-                color: cm.shift === 'N' ? '#1d4ed8' : '#374151',
-                background: cm.shift === 'N' ? '#eff6ff' : '#fff',
-              }}
-            >
-              {cm.shift}
-            </th>
+        {kwList.flatMap((kw) => {
+          let g = 0;
+          return TL_DAYS.flatMap((_, dayIdx) =>
+            TL_SHIFTS.map((sh) => {
+              const isKwStart = g % COLS_PER_KW === 0;
+              const isDayStart = g % 2 === 0;
+              g += 1;
+              return (
+                <th
+                  key={`${kw.id}-${dayIdx}-${sh.id}`}
+                  style={{
+                    textAlign: 'center', fontSize: 9, fontWeight: 600, padding: '2px',
+                    borderBottom: '2px solid #e4e4e7',
+                    borderLeft: isKwStart ? '2px solid #e4e4e7' : isDayStart ? '1px solid #f0f0f0' : 'none',
+                    color: sh.id === 'N' ? '#1d4ed8' : '#374151',
+                    background: sh.id === 'N' ? '#eff6ff' : '#fff',
+                  }}
+                >
+                  {sh.id}
+                </th>
+              );
+            }),
           );
         })}
       </tr>

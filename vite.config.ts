@@ -21,7 +21,7 @@ export default defineConfig({
         manualChunks: {
           'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-table': ['@tanstack/react-table', '@tanstack/react-virtual'],
+          'vendor-table': ['@tanstack/react-table'],
           'vendor-state': ['zustand'],
           'vendor-export': ['xlsx', 'jspdf', 'jspdf-autotable'],
         },

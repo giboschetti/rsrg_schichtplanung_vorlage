@@ -31,15 +31,32 @@ export function AppHeader({ onSave, saving }: AppHeaderProps) {
       zIndex: 50,
       flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <img
-          src="https://raw.githubusercontent.com/giboschetti/rsrg_schichtplanung_vorlage/main/assets/logo-rhomberg-sersa.jpg"
-          alt="RSRG"
-          height={28}
-          style={{ display: 'block', objectFit: 'contain', cursor: 'pointer' }}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        {/* Size box explicitly: Tailwind preflight uses img{max-width:100%;height:auto} which overrides height="" */}
+        <button
+          type="button"
           onClick={() => navigate('/')}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
+          style={{
+            width: 112,
+            height: 32,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            padding: 0,
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+          }}
+          aria-label="Zurück zur Projektübersicht"
+        >
+          <img
+            src="https://raw.githubusercontent.com/giboschetti/rsrg_schichtplanung_vorlage/main/assets/logo-rhomberg-sersa.jpg"
+            alt=""
+            style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain', display: 'block' }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        </button>
         <div style={{ width: 1, height: 24, background: '#e4e4e7' }} />
         <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 15, color: '#09090b' }}>
           {projectName || 'Schichtplanung'}

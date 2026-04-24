@@ -84,7 +84,9 @@ export const usePlannerStore = create<PlannerState>()(
       markClean: () => set({ dirty: false }),
     }),
     {
+      // Key is set per project in useProject (setOptions) so local cache never mixes projects.
       name: 'rsrg-planner',
+      skipHydration: true,
       // Only persist workItems + kwList locally; projectId is loaded from URL
       partialize: (s) => ({ workItems: s.workItems, kwList: s.kwList }),
     },

@@ -120,6 +120,22 @@ export interface ShiftConfig {
   nacht: { von: string; bis: string };
 }
 
+/** Kontaktliste / Projektteam (legacy Tabulator: tables.mitarbeiter) */
+export interface MitarbeiterRow {
+  id: string;
+  name?: string;
+  vorname?: string;
+  funktion?: string;
+  firma?: string;
+  tel?: string;
+  email?: string;
+  bemerkung?: string;
+}
+
+export const MITARBEITER_FUNKTION_OPTIONS = [
+  'Baugruppe', 'Sicherheit', 'Maschinist', 'Polier', 'Bauleiter', 'Fremdfirma', 'Andere',
+] as const;
+
 // ─── Calendar week ──────────────────────────────────────────────────────────
 
 export interface KalenderWoche {
@@ -137,12 +153,40 @@ export interface ProjectStammdaten {
   fachdienstBauteile: FachdienstBauteile;
   shiftConfig: ShiftConfig;
   fachdienste?: string[];
+  /** Projekt- & Baustellenfelder (legacy: inputs in stammdaten) */
+  projektname?: string;
+  projektnummer?: string;
+  auftraggeber?: string;
+  bauleiter?: string;
+  polier?: string;
+  standort?: string;
+  baubeginn?: string;
+  bauende?: string;
 }
+
+/** Nur die freien Textfelder (für Store / Formular) */
+export type ProjectStamFormFields = Pick<
+  ProjectStammdaten,
+  'projektname' | 'projektnummer' | 'auftraggeber' | 'bauleiter' | 'polier' | 'standort' | 'baubeginn' | 'bauende'
+>;
+
+export const EMPTY_PROJECT_STAM_FORM: Readonly<ProjectStamFormFields> = {
+  projektname: '',
+  projektnummer: '',
+  auftraggeber: '',
+  bauleiter: '',
+  polier: '',
+  standort: '',
+  baubeginn: '',
+  bauende: '',
+};
 
 export interface ProjectSnapshot {
   kwList: KalenderWoche[];
   workItems: WorkItems;
   stammdaten: ProjectStammdaten;
+  /** Projektkontakte — auch als Firestore-Top-Level `stammdaten.personal` (Import) */
+  mitarbeiter?: MitarbeiterRow[];
 }
 
 export interface Project {

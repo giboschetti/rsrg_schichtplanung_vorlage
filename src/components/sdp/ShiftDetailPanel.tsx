@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useUiStore } from '@/stores/uiStore';
 import { usePlannerStore } from '@/stores/plannerStore';
 import { useStammdatenStore } from '@/stores/stammdatenStore';
@@ -41,19 +42,20 @@ export function ShiftDetailPanel() {
     ? `Tag (${shiftConfig.tag.von} – ${shiftConfig.tag.bis})`
     : `Nacht (${shiftConfig.nacht.von} – ${shiftConfig.nacht.bis})`;
 
-  return (
+  return createPortal(
     <>
-      {/* Backdrop */}
+      {/* Backdrop — portal avoids ancestors with transform/filters breaking position:fixed */}
       <div
         onClick={closeSdp}
-        style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'transparent' }}
+        role="presentation"
+        style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.08)' }}
       />
       {/* Panel */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
         background: '#fff', borderTop: '2px solid #FF6300',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.10)',
-        maxHeight: '55vh', overflow: 'auto',
+        maxHeight: '55vh', overflow: 'auto', pointerEvents: 'auto',
       }}>
         {/* Header */}
         <div style={{
@@ -86,7 +88,8 @@ export function ShiftDetailPanel() {
           ))}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 

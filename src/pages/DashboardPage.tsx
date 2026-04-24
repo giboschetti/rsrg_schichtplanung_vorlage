@@ -64,14 +64,24 @@ export default function DashboardPage() {
         top: 0,
         zIndex: 50,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img
-            src="https://raw.githubusercontent.com/giboschetti/rsrg_schichtplanung_vorlage/main/assets/logo-rhomberg-sersa.jpg"
-            alt="RSRG"
-            height={32}
-            style={{ display: 'block', objectFit: 'contain' }}
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <div
+            style={{
+              width: 120,
+              height: 32,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+            }}
+          >
+            <img
+              src="https://raw.githubusercontent.com/giboschetti/rsrg_schichtplanung_vorlage/main/assets/logo-rhomberg-sersa.jpg"
+              alt="RSRG"
+              style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain', display: 'block' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          </div>
           <div style={{ width: 1, height: 28, background: '#e4e4e7' }} />
           <div>
             <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 16, color: '#09090b', lineHeight: 1.2 }}>
@@ -84,7 +94,7 @@ export default function DashboardPage() {
           {user && (
             <span style={{ fontSize: 13, color: '#71717a' }}>{user.displayName ?? user.email}</span>
           )}
-          {user ? (
+          {user && (
             <button
               onClick={() => signOut()}
               style={{
@@ -93,16 +103,6 @@ export default function DashboardPage() {
               }}
             >
               Abmelden
-            </button>
-          ) : (
-            <button
-              onClick={() => signIn()}
-              style={{
-                padding: '6px 14px', borderRadius: 6, border: 'none',
-                background: '#FF6300', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              Mit Google anmelden
             </button>
           )}
         </div>
