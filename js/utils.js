@@ -126,11 +126,18 @@ function getItemLabel(item, sectionId) {
   if (sectionId === 'inventar')      return item.geraet   || '–';
   if (sectionId === 'material')      return item.material || '–';
   if (sectionId === 'fremdleistung') return item.firma    || '–';
-  if (sectionId === 'intervalle')    return item.babTitel || item.babNr || '–';
+  if (sectionId === 'intervalle')    return item.babNr || item.babTitel || '–';
   return '–';
 }
 
-function tlBlockClassFromResStatus(it) {
+function tlBlockClassFromResStatus(it, sectionId) {
+  if (sectionId === 'intervalle') {
+    const v = it.status;
+    if (v === 'Verständigt')       return 'tl-rs-bestaetigt';
+    if (v === 'Entwurf' || v === 'Änderung') return 'tl-rs-iv-warning';
+    if (v === 'Zusätzlicher Bedarf') return 'tl-rs-planung';
+    return 'tl-rs-none';
+  }
   const v = it.resStatus;
   if (v === 'Planung')    return 'tl-rs-planung';
   if (v === 'Bestellt')   return 'tl-rs-bestellt';

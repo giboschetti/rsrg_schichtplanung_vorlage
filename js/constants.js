@@ -12,12 +12,12 @@ const FACHDIENST_VALUES = ['FB', 'IB/TB', 'FL', 'SAZ', 'KAB', 'Andere'];
 
 // Each group maps to a section key in workItems cell
 const TL_GROUPS = [
-  { id: 'tasks',         label: 'Tätigkeiten',  section: 'tasks' },
+  { id: 'intervalle',    label: 'Intervalle',      section: 'intervalle' },
+  { id: 'tasks',         label: 'Tätigkeiten',     section: 'tasks' },
   { id: 'personal',      label: 'Personal',        section: 'personal' },
   { id: 'inventar',      label: 'Inventar',        section: 'inventar' },
   { id: 'material',      label: 'Material',        section: 'material' },
   { id: 'fremdleistung', label: 'Fremdleistung',   section: 'fremdleistung' },
-  { id: 'intervalle',    label: 'Intervalle',      section: 'intervalle' },
 ];
 
 const SHIFT_CLIP_SECTIONS = ['tasks', 'personal', 'inventar', 'material', 'fremdleistung', 'intervalle'];

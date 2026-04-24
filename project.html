@@ -51,6 +51,9 @@
       border-bottom: 1px solid var(--border, #d9d3c8);
       margin-bottom: 4px;
     }
+    .tl-block.tl-rs-iv-warning {
+      background: #D97706; color: #fff; border-left-color: #B45309;
+    }
   </style>
 
   <script src="https://unpkg.com/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
@@ -403,6 +406,7 @@
     <div class="form-group">
       <label>Ressourcen-Typ</label>
       <select id="bulkAddType" onchange="bulkAddTypeChanged()">
+        <option value="intervalle">Intervalle</option>
         <option value="personal">Personal</option>
         <option value="material">Material</option>
         <option value="inventar">Inventar</option>
@@ -411,6 +415,13 @@
       </select>
     </div>
     <div id="bulkAddFields" class="bulk-add-fields">
+      <div class="bulk-add-type-panel" data-type="intervalle" style="display:none">
+        <div class="form-group"><label>BAB-Nr</label><input type="text" id="bulk-intervalle-babNr" placeholder="z.B. BAB-2026-001"></div>
+        <div class="form-group"><label>BAB Titel</label><input type="text" id="bulk-intervalle-babTitel" placeholder="z.B. Gleis 1 Sperrung"></div>
+        <div class="form-group"><label>Status</label><select id="bulk-intervalle-status"><option value="">—</option><option value="Entwurf">Entwurf</option><option value="Änderung">Änderung</option><option value="Verständigt">Verständigt</option><option value="Zusätzlicher Bedarf">Zusätzlicher Bedarf</option></select></div>
+        <div class="form-group"><label>Gleissperrungen</label><input type="text" id="bulk-intervalle-gleissperrungen"></div>
+        <div class="form-group"><label>Fahrleitungsausschaltungen</label><input type="text" id="bulk-intervalle-fahrleitungsausschaltungen"></div>
+      </div>
       <div class="bulk-add-type-panel" data-type="personal">
         <div class="form-group"><label>Name</label><input type="text" id="bulk-personal-name" placeholder="z.B. Max Mustermann"></div>
         <div class="form-group"><label>Funktion</label><select id="bulk-personal-funktion"><option value="">—</option><option value="Baugruppe">Baugruppe</option><option value="Sicherheit">Sicherheit</option><option value="Maschinist">Maschinist</option><option value="Polier">Polier</option><option value="Bauleiter">Bauleiter</option><option value="Fremdfirma">Fremdfirma</option></select></div>

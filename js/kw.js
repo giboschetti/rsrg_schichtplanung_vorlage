@@ -132,7 +132,13 @@ function updateBulkAddPreview() {
 
 function collectBulkAddData(section) {
   const row = { id: Math.random().toString(36).slice(2) };
-  if (section === 'personal') {
+  if (section === 'intervalle') {
+    row.babNr  = (document.getElementById('bulk-intervalle-babNr')?.value || '').trim();
+    row.babTitel = (document.getElementById('bulk-intervalle-babTitel')?.value || '').trim();
+    row.status = (document.getElementById('bulk-intervalle-status')?.value || '').trim();
+    row.gleissperrungen = (document.getElementById('bulk-intervalle-gleissperrungen')?.value || '').trim();
+    row.fahrleitungsausschaltungen = (document.getElementById('bulk-intervalle-fahrleitungsausschaltungen')?.value || '').trim();
+  } else if (section === 'personal') {
     row.name = (document.getElementById('bulk-personal-name')?.value || '').trim();
     row.funktion = (document.getElementById('bulk-personal-funktion')?.value || '').trim();
     row.resStatus = (document.getElementById('bulk-personal-status')?.value || '').trim();
@@ -168,6 +174,7 @@ function collectBulkAddData(section) {
 }
 
 function hasBulkAddRequiredField(section, row) {
+  if (section === 'intervalle') return !!row.babNr;
   if (section === 'personal') return !!row.name;
   if (section === 'material') return !!row.material;
   if (section === 'inventar') return !!row.geraet;
@@ -191,7 +198,7 @@ function confirmBulkAdd() {
   const allowedDays = getBulkAddAllowedDays();
   const row = collectBulkAddData(section);
   if (!hasBulkAddRequiredField(section, row)) {
-    const labels = { personal: 'Name', material: 'Material', inventar: 'Gerät/Inventar', tasks: 'Tätigkeit (Pflichtfeld)', fremdleistung: 'Firma' };
+    const labels = { intervalle: 'BAB-Nr', personal: 'Name', material: 'Material', inventar: 'Gerät/Inventar', tasks: 'Tätigkeit', fremdleistung: 'Firma' };
     showToast('Pflichtfeld angeben: ' + (labels[section] || section));
     return;
   }

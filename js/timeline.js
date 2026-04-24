@@ -281,7 +281,7 @@ function buildCell(kwId, dayIdx, shift, g, items, extraCls) {
   const attrs = `data-kw="${kwId}" data-day="${dayIdx ?? ''}" data-shift="${shift ?? ''}" data-grp="${g.id}"`;
   const blocks = items.slice(0, 3).map(it => {
     const label = getItemLabel(it, g.section).substring(0, 14);
-    const bcls = tlBlockClassFromResStatus(it);
+    const bcls = tlBlockClassFromResStatus(it, g.section);
     const tip = tlBlockTitle(it, g.section) || label;
     return `<span class="tl-block ${bcls}" title="${escAttr(tip)}">${label}</span>`;
   }).join('');
