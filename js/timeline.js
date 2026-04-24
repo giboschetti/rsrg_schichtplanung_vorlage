@@ -279,7 +279,9 @@ function renderTimeline() {
   });
   tbody += '</tbody>';
 
+  const savedScroll = wrapper.querySelector('.tl-unified-wrap')?.scrollLeft ?? 0;
   wrapper.innerHTML = `<div class="tl-unified-wrap"><table class="tl-table tl-unified" style="table-layout:fixed">${colgroup}${thead}${tbody}</table></div>`;
+  if (savedScroll) wrapper.querySelector('.tl-unified-wrap').scrollLeft = savedScroll;
 
   // Day header click → open SDP (Tag shift)
   wrapper.querySelectorAll('.tl-day-th[data-kw]').forEach(th => {

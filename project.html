@@ -12,6 +12,10 @@
   <style>
     /* Unified single grid */
     .tl-unified-wrap { overflow-x: auto; }
+    .tl-unified-wrap::-webkit-scrollbar { height: 12px; }
+    .tl-unified-wrap::-webkit-scrollbar-track { background: var(--surface-alt, #f0ece4); border-radius: 6px; }
+    .tl-unified-wrap::-webkit-scrollbar-thumb { background: var(--border, #c0b9b0); border-radius: 6px; border: 2px solid var(--surface-alt, #f0ece4); }
+    .tl-unified-wrap::-webkit-scrollbar-thumb:hover { background: var(--text-muted, #6b6560); }
     .tl-collapsible-label { cursor: pointer; user-select: none; }
     .tl-collapsible-label:hover { background: var(--surface-hover, #f0ece4) !important; }
     .tl-toggle-icon { display: inline-block; font-size: 9px; margin-right: 5px; color: var(--text-muted, #6b6560); }
