@@ -32,8 +32,8 @@ function openSDP(kwId, dayIdx, shift, grp) {
   else showAllSDPSections();
 
   const panel = document.getElementById('shiftDetailPanel');
-  panel.style.display = 'block';
-  setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+  panel.classList.add('open');
+  document.getElementById('page-uebersicht').style.paddingBottom = '50vh';
 }
 
 function updateSDPMeta() {
@@ -153,7 +153,8 @@ function closeSDP() {
   flushOpenSDPTables();
   selectedCell = null;
   document.querySelectorAll('.tl-cell.selected').forEach(td => td.classList.remove('selected'));
-  document.getElementById('shiftDetailPanel').style.display = 'none';
+  document.getElementById('shiftDetailPanel').classList.remove('open');
+  document.getElementById('page-uebersicht').style.paddingBottom = '';
   Object.values(sdpTables).forEach(t => { if (t) t.destroy(); });
   Object.keys(sdpTables).forEach(k => delete sdpTables[k]);
 }

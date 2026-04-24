@@ -6,15 +6,16 @@
       --rs-red-dark:    #B80026;
 
       /* Heller RSRG-ähnlicher Grundton (warmes Grau/Creme statt Schwarz) */
-      --bg:             #F5F2EC;
+      --bg:             #f8f8f9;
       --surface:        #FFFFFF;
       --header-bg:      #FAF8F5;
       --header-text:    #2C2825;
       --accent:         var(--rs-orange);
       --accent-dark:    var(--rs-orange-dark);
-      --text:           #2C2825;
-      --text-muted:     #6B6560;
-      --border:         #D9D3C8;
+      --text:           #09090b;
+      --text-muted:     #71717a;
+      --border:         #e4e4e7;
+      --surface-alt:    #f4f4f5;
       --tab-bg:         #F0EDE6;
       --tab-border:     #D4CFC4;
       --tab-muted:      #6B6560;
@@ -34,9 +35,9 @@
       --shift-fruh:     #2E7D6A;
       --shift-spat:     #B06020;
 
-      /* Typo: Corporate E = Überschriften (Bold 700/800), Corporate S = Fließtext / Demi für Betonung */
-      --font-e: 'Corporate E', 'Barlow Condensed', system-ui, sans-serif;
-      --font-s: 'Corporate S', 'DM Sans', system-ui, sans-serif;
+      /* Typo: Display = headlines/labels (Space Grotesk), Body = text/cells (Inter) */
+      --font-e: 'Space Grotesk', system-ui, sans-serif;
+      --font-s: 'Inter', system-ui, sans-serif;
     }
 
     /*
@@ -62,11 +63,11 @@
       background: #FFFFFF;
       color: var(--text);
       padding: 0 24px;
-      height: 60px;
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 3px solid var(--rs-orange);
+      box-shadow: 0 2px 0 var(--accent);
       position: sticky;
       top: 0;
       z-index: 200;
@@ -136,7 +137,7 @@
       display: flex; align-items: stretch;
       padding: 0 16px;
       overflow-x: auto; scrollbar-width: none;
-      position: sticky; top: 60px; z-index: 199;
+      position: sticky; top: 56px; z-index: 199;
       border-bottom: 1px solid var(--tab-border);
     }
     .tab-bar::-webkit-scrollbar { display: none; }
@@ -697,11 +698,43 @@
     }
     .tl-more { font-size: 9px; color: var(--text-muted); padding: 1px 4px; }
 
+    /* ── Timeline chips (replaces tl-block in cells) ─────────────────── */
+    .tl-chip {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 1px 5px; border-radius: 9999px;
+      font-size: 10px; font-weight: 500;
+      white-space: nowrap; max-width: 100%; overflow: hidden;
+      margin: 1px 0; cursor: pointer;
+    }
+    .tl-chip-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .chip-bestaetigt   { background: #dcfce7; color: #15803d; } .chip-bestaetigt   .tl-chip-dot { background: #15803d; }
+    .chip-bestellt     { background: #dbeafe; color: #1d4ed8; } .chip-bestellt     .tl-chip-dot { background: #1d4ed8; }
+    .chip-planung      { background: #fef9c3; color: #a16207; } .chip-planung      .tl-chip-dot { background: #ca8a04; }
+    .chip-anfrage      { background: #ffe4e6; color: #be123c; } .chip-anfrage      .tl-chip-dot { background: #e11d48; }
+    .chip-default      { background: #f4f4f5; color: #71717a; } .chip-default      .tl-chip-dot { background: #a1a1aa; }
+
     /* ── Shift Detail Panel ──────────────────────────────────────────── */
     .sdp-outer {
       margin-top: 10px;
       border: 1px solid var(--border);
       background: white;
+    }
+    #shiftDetailPanel {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 100;
+      background: var(--surface, #fff);
+      border-top: 2px solid var(--accent);
+      border-left: none; border-right: none; border-bottom: none;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.10);
+      max-height: 50vh;
+      overflow-y: auto;
+      transform: translateY(100%);
+      transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+      margin-top: 0;
+    }
+    #shiftDetailPanel.open {
+      transform: translateY(0);
     }
     .sdp-hdr {
       background: var(--section-hdr);

@@ -133,16 +133,16 @@ function getItemLabel(item, sectionId) {
 function tlBlockClassFromResStatus(it, sectionId) {
   if (sectionId === 'intervalle') {
     const v = it.status;
-    if (v === 'Verständigt')       return 'tl-rs-bestaetigt';
-    if (v === 'Entwurf' || v === 'Änderung') return 'tl-rs-iv-warning';
-    if (v === 'Zusätzlicher Bedarf') return 'tl-rs-planung';
-    return 'tl-rs-none';
+    if (v === 'Verständigt')         return 'chip-bestaetigt';
+    if (v === 'Entwurf' || v === 'Änderung') return 'chip-planung';
+    if (v === 'Zusätzlicher Bedarf') return 'chip-anfrage';
+    return 'chip-default';
   }
   const v = it.resStatus;
-  if (v === 'Planung')    return 'tl-rs-planung';
-  if (v === 'Bestellt')   return 'tl-rs-bestellt';
-  if (v === 'Bestätigt')  return 'tl-rs-bestaetigt';
-  return 'tl-rs-none';
+  if (v === 'Planung')   return 'chip-planung';
+  if (v === 'Bestellt')  return 'chip-bestellt';
+  if (v === 'Bestätigt') return 'chip-bestaetigt';
+  return 'chip-default';
 }
 
 function tlBlockTitle(it, sectionId) {

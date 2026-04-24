@@ -206,7 +206,7 @@ function buildCell(kwId, dayIdx, shift, g, items, extraCls) {
     const label = getItemLabel(it, g.section).substring(0, 14);
     const bcls = tlBlockClassFromResStatus(it, g.section);
     const tip = tlBlockTitle(it, g.section) || label;
-    return `<span class="tl-block ${bcls}" title="${escAttr(tip)}">${label}</span>`;
+    return `<span class="tl-chip ${bcls}" title="${escAttr(tip)}"><span class="tl-chip-dot"></span>${escapeHtmlText(label)}</span>`;
   }).join('');
   const more = items.length > 3 ? `<span class="tl-more">+${items.length - 3}</span>` : '';
   return `<td class="tl-cell ${extraCls}" ${attrs}>${blocks}${more}</td>`;
