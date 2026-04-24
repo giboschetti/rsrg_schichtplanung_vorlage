@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/* ─── RSRG Brand tokens ──────────────────────────────────────────────── */
+@theme {
+  --color-accent: #FF6300;
+  --color-accent-hover: #e05800;
+
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Zinc-based surface palette */
+  --color-surface: #ffffff;
+  --color-surface-alt: #f4f4f5;
+  --color-bg: #f8f8f9;
+  --color-border: #e4e4e7;
+  --color-text: #09090b;
+  --color-text-muted: #71717a;
+}
+
+/* ─── shadcn/ui CSS variable bridge (zinc base) ──────────────────────── */
+:root {
+  --background: 0 0% 98%;
+  --foreground: 240 10% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 4%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 4%;
+  --primary: 20 100% 50%;       /* #FF6300 accent */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 5% 96%;
+  --secondary-foreground: 240 6% 10%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 46%;
+  --accent: 20 100% 50%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 6% 90%;
+  --input: 240 6% 90%;
+  --ring: 20 100% 50%;
+  --radius: 0.5rem;
+}
+
+/* ─── Base styles ────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: #f8f8f9;
+  color: #09090b;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Status chip styles (shared with timeline) ─────────────────────── */
+.chip-bestaetigt  { background: #dcfce7; color: #15803d; }
+.chip-bestaetigt  .chip-dot { background: #15803d; }
+.chip-bestellt    { background: #dbeafe; color: #1d4ed8; }
+.chip-bestellt    .chip-dot { background: #1d4ed8; }
+.chip-planung     { background: #fef9c3; color: #a16207; }
+.chip-planung     .chip-dot { background: #ca8a04; }
+.chip-anfrage     { background: #ffe4e6; color: #be123c; }
+.chip-anfrage     .chip-dot { background: #e11d48; }
+.chip-default     { background: #f4f4f5; color: #71717a; }
+.chip-default     .chip-dot { background: #a1a1aa; }
