@@ -148,7 +148,7 @@ export function TimelineGrid() {
       {
         id: 'label',
         header: 'Ressource',
-        size: 160,
+        size: 250,
         cell: ({ row }) => {
           const meta = row.original;
           const collapsed = !!tlCollapsed[meta.groupId];
@@ -159,9 +159,9 @@ export function TimelineGrid() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   cursor: 'pointer', fontWeight: 600, fontSize: 12,
-                  padding: '0 8px', height: '100%',
+                  padding: '0 8px', height: '100%', minHeight: 38,
                   fontFamily: 'Space Grotesk, sans-serif',
-                  color: '#09090b',
+                  color: '#18181b',
                 }}
               >
                 <span style={{ fontSize: 9, color: '#71717a', width: 10 }}>
@@ -245,7 +245,7 @@ export function TimelineGrid() {
   const allCols = table.getAllColumns();
   const shiftCols = allCols.slice(1) as Column<TlRowMeta>[];
 
-  const labelColWidth = 160;
+  const labelColWidth = 250;
   const shiftColWidth = 88;
   const totalColWidth = shiftCols.length * shiftColWidth;
 
@@ -309,23 +309,36 @@ function TlBodyRow({
   shiftColWidth: number;
 }) {
   const meta = row.original;
-  const isParent = meta.kind === 'group-header';
+  const isGroupHeader = meta.kind === 'group-header';
   const isL1 = meta.kind === 'fachdienst';
 
   const labelCell = row.getVisibleCells().find((c) => c.column.id === 'label');
 
-  const bgColor = isParent ? '#f4f4f5' : isL1 ? '#fafafa' : '#fff';
+  /** Full-width row band: same fill on every cell (sticky label + scrollable shifts). */
+  const rowBackground = isGroupHeader
+    ? '#e8ebef'
+    : isL1
+      ? '#f6f7f8'
+      : '#fff';
+  const rowBorderTop = isGroupHeader ? '1px solid #cfd4dc' : undefined;
+  const rowBorderBottom = isGroupHeader ? '1px solid #cfd4dc' : '1px solid #e4e4e7';
 
   return (
-    <tr style={{ height: 36 }}>
+    <tr
+      style={{
+        height: isGroupHeader ? 38 : 36,
+        ...(isGroupHeader ? { background: rowBackground } : undefined),
+      }}
+    >
       <td
         style={{
           width: labelColWidth,
           position: 'sticky', left: 0, zIndex: 2,
-          background: bgColor,
-          borderBottom: '1px solid #e4e4e7',
+          background: rowBackground,
+          borderTop: rowBorderTop,
+          borderBottom: rowBorderBottom,
           borderRight: '1px solid #e4e4e7',
-          ...(isParent ? { borderLeft: '3px solid #FF6300' } : {}),
+          ...(isGroupHeader ? { borderLeft: '3px solid #FF6300' } : {}),
           padding: 0, overflow: 'hidden',
         }}
       >
@@ -340,8 +353,10 @@ function TlBodyRow({
             key={col.id}
             style={{
               width: shiftColWidth,
+              background: rowBackground,
+              borderTop: rowBorderTop,
+              borderBottom: rowBorderBottom,
               padding: 0,
-              borderBottom: '1px solid #e4e4e7',
               borderRight: '1px solid #f0f0f0',
               verticalAlign: 'top',
               cursor: 'pointer',
@@ -388,7 +403,7 @@ function TlCell({
             <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               padding: '1px 7px', borderRadius: 9999, fontSize: 10, fontWeight: 600,
-              background: '#f4f4f5', color: '#71717a',
+              background: '#fff', color: '#52525b', border: '1px solid #d4d4d8',
             }}>
               {count}
             </span>
@@ -396,7 +411,7 @@ function TlCell({
         </div>
       );
     }
-    return <div onClick={handleClick} style={{ height: '100%', cursor: 'pointer' }} />;
+    return <div onClick={handleClick} style={{ height: '100%', minHeight: 36, cursor: 'pointer' }} />;
   }
 
   if (meta.kind === 'fachdienst') {

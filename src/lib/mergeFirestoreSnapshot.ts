@@ -114,10 +114,30 @@ export function extractProjectSnapshot(data: Record<string, unknown>): ProjectSn
     const v2 = data.snapshot as Partial<ProjectSnapshot>;
     const st = (v2.stammdaten ?? {}) as ProjectStammdaten;
     const stExtra = st as unknown as Record<string, unknown>;
-    const shift = (st.shiftConfig ?? DEFAULT_SHIFT) as ShiftConfig;
-    const fach = (st.fachdienstBauteile ?? {}) as ProjectStammdaten['fachdienstBauteile'];
-    const kwList =
-      isNonEmptyKalenderWocheList(v2.kwList) ? v2.kwList! : legacyKw;
+    const stPd = pd && typeof pd === 'object' ? (pd.stammdaten as Record<string, unknown> | undefined) : undefined;
+    const shiftFromPlanner =
+      (pd && typeof pd === 'object'
+        ? ((pd as Record<string, unknown>).shiftConfig as ShiftConfig | undefined) ||
+          (stPd?.shiftConfig as ShiftConfig | undefined) ||
+          (overview?.shiftConfig as ShiftConfig | undefined)
+        : undefined) ?? undefined;
+    const shift = (st.shiftConfig ?? shiftFromPlanner ?? DEFAULT_SHIFT) as ShiftConfig;
+    const fachFromPd = (stPd?.fachdienstBauteile ?? {}) as ProjectStammdaten['fachdienstBauteile'];
+    const fachV2 = (st.fachdienstBauteile ?? {}) as ProjectStammdaten['fachdienstBauteile'];
+    const fach: ProjectStammdaten['fachdienstBauteile'] = { ...fachFromPd, ...fachV2 };
+    // Prefer v2 weeks; if empty, use legacy plannerData weeks, then top-level kalenderwochen
+    const kwList = isNonEmptyKalenderWocheList(v2.kwList)
+      ? v2.kwList!
+      : isNonEmptyKalenderWocheList(pd?.kwList)
+        ? (pd!.kwList as KalenderWoche[])
+        : legacyKw;
+    // Same document often still has `plannerData` (vanilla app / manual Firestore edits). Merge so that data is not lost.
+    const legacyWorkItems =
+      pd && typeof pd === 'object'
+        ? normalizeWorkItemKeys((pd as Record<string, unknown>).workItems ?? {})
+        : {};
+    const v2WorkItems = normalizeWorkItemKeys(v2.workItems ?? {});
+    const workItems = { ...legacyWorkItems, ...v2WorkItems };
     const stV2: Record<string, unknown> = {
       ...(stExtra ?? {}),
       projektname: str(stExtra?.projektname) || str(data.name),
@@ -129,11 +149,17 @@ export function extractProjectSnapshot(data: Record<string, unknown>): ProjectSn
       baubeginn: str(stExtra?.baubeginn) || str(overview?.baubeginn),
       bauende: str(stExtra?.bauende) || str(overview?.bauende),
     };
+    const v2Mita = normalizeMitarbeiterList(v2.mitarbeiter);
+    const tables = pd && typeof pd === 'object' ? (pd as Record<string, unknown>).tables as { mitarbeiter?: unknown } | undefined : undefined;
+    const mitarbeiterFromPd = normalizeMitarbeiterList(
+      tables?.mitarbeiter ?? (stPd as { mitarbeiter?: unknown } | undefined)?.mitarbeiter,
+    );
+    const mitarbeiter = v2Mita.length > 0 ? v2Mita : mitarbeiterFromPd;
     return {
       kwList,
-      workItems: normalizeWorkItemKeys(v2.workItems ?? {}),
+      workItems,
       stammdaten: buildStammdaten(fach, shift, stV2),
-      mitarbeiter: normalizeMitarbeiterList(v2.mitarbeiter),
+      mitarbeiter,
     };
   }
 

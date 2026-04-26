@@ -3,10 +3,22 @@
 export const FACHDIENST_VALUES = ['FB', 'IB/TB', 'FL', 'SAZ', 'KAB', 'Andere'] as const;
 export type Fachdienst = (typeof FACHDIENST_VALUES)[number];
 
+/** Personal/Funktion dropdowns: Schichtplan, Bulk-Hinzufügen, Stammdaten-Kontakte */
 export const SDP_FUNKTION_VALUES = [
-  'Bauleiter', 'Stellv. Bauleiter', 'Polier', 'Vorarbeiter',
-  'Facharbeiter', 'Hilfsarbeiter', 'Sicherheitsbeauftragter',
-  'Sicherungsposten', 'Signalmann', 'Kranführer', 'Andere',
+  'Polier',
+  'Baugruppe',
+  'Facharbeiter',
+  'Gleismonteur',
+  'Vermesser',
+  'Maschinist',
+  'Maschinist V10',
+  'Lokführer',
+  'Begleiter',
+  'Sicherheitschef',
+  'Sicherheitswärter/Vorwarner',
+  'Sicherheitswärter/Vorwarner (Lynx)',
+  'Ako',
+  'Andere',
 ] as const;
 export type PersonalFunktion = (typeof SDP_FUNKTION_VALUES)[number] | string;
 
@@ -132,9 +144,7 @@ export interface MitarbeiterRow {
   bemerkung?: string;
 }
 
-export const MITARBEITER_FUNKTION_OPTIONS = [
-  'Baugruppe', 'Sicherheit', 'Maschinist', 'Polier', 'Bauleiter', 'Fremdfirma', 'Andere',
-] as const;
+export const MITARBEITER_FUNKTION_OPTIONS = SDP_FUNKTION_VALUES;
 
 // ─── Calendar week ──────────────────────────────────────────────────────────
 
