@@ -8,6 +8,7 @@ import { TimelineFilterBar, KwToolbar } from '@/components/timeline/TimelineCont
 import { useProject } from '@/hooks/useProject';
 import { useUiStore } from '@/stores/uiStore';
 import { StammdatenPanel } from '@/components/StammdatenPanel';
+import { IntervallePdfDialog } from '@/components/IntervallePdfDialog';
 
 function UebersichtTab() {
   return (
@@ -119,6 +120,7 @@ export default function PlannerPage() {
       </div>
 
       <ShiftDetailPanel />
+      <IntervallePdfDialog />
       <ToastContainer />
     </div>
   );

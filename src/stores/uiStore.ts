@@ -23,6 +23,12 @@ interface ToastMessage {
   message: string;
 }
 
+/** Floating PDF viewer for Intervall «BAB Datei» (Airtable URL). */
+export interface IntervallePdfPayload {
+  url: string;
+  label?: string;
+}
+
 interface UiState {
   /** Currently open tab: 'uebersicht' | 'stammdaten' */
   activeTab: string;
@@ -38,11 +44,18 @@ interface UiState {
   toasts: ToastMessage[];
   /** Available TL groups (can be reordered) */
   tlGroups: TlGroup[];
+  /** Draggable window showing BAB PDF; does not block the rest of the UI */
+  intervallePdf: IntervallePdfPayload | null;
 
   setActiveTab: (tab: string) => void;
   openSdp: (cell: SelectedCell) => void;
   closeSdp: () => void;
+  openIntervallePdf: (p: IntervallePdfPayload) => void;
+  closeIntervallePdf: () => void;
   toggleTlFilter: (grpId: keyof TlFilterState) => void;
+  /** If `fachdienstTlFilter[fd] === false`, task rows for that Fachdienst are hidden. Missing key = sichtbar. */
+  fachdienstTlFilter: Record<string, boolean>;
+  toggleFachdienstTlFilter: (fachdienst: string) => void;
   toggleTlCollapsed: (grpId: string) => void;
   showToast: (message: string) => void;
   dismissToast: (id: string) => void;
@@ -63,6 +76,8 @@ export const useUiStore = create<UiState>()((set) => ({
   tlCollapsed: {},
   toasts: [],
   tlGroups: TL_GROUPS,
+  intervallePdf: null,
+  fachdienstTlFilter: {},
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -70,10 +85,22 @@ export const useUiStore = create<UiState>()((set) => ({
 
   closeSdp: () => set({ sdpOpen: false, selectedCell: null }),
 
+  openIntervallePdf: (p) => set({ intervallePdf: p }),
+
+  closeIntervallePdf: () => set({ intervallePdf: null }),
+
   toggleTlFilter: (grpId) =>
     set((s) => ({
       tlFilter: { ...s.tlFilter, [grpId]: !s.tlFilter[grpId] },
     })),
+
+  toggleFachdienstTlFilter: (fachdienst) =>
+    set((s) => {
+      const m = { ...s.fachdienstTlFilter };
+      if (m[fachdienst] === false) delete m[fachdienst];
+      else m[fachdienst] = false;
+      return { fachdienstTlFilter: m };
+    }),
 
   toggleTlCollapsed: (grpId) =>
     set((s) => ({

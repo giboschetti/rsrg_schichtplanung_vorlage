@@ -1,4 +1,4 @@
-import { useMemo, useRef, useCallback } from 'react';
+import { useMemo, useRef, useCallback, type MouseEvent } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -22,6 +22,7 @@ import {
   getPersonalByFunktion,
 } from '@/lib/workItemHelpers';
 import { tlDayHeader } from '@/lib/dateHelpers';
+import { isHttpUrl } from '@/lib/utils';
 import type {
   KalenderWoche,
   SdpSection,
@@ -58,7 +59,15 @@ function colId(kwId: string, dayIdx: number, shiftId: ShiftId): string {
 
 // ─── Chip component ──────────────────────────────────────────────────────────
 
-function Chip({ item, section }: { item: unknown; section: SdpSection }) {
+function Chip({
+  item,
+  section,
+  onChipClick,
+}: {
+  item: unknown;
+  section: SdpSection;
+  onChipClick?: (e: MouseEvent) => void;
+}) {
   const it = item as Record<string, unknown>;
   const cls = chipClassFromResStatus(it, section);
   const label = getItemLabel(it, section).substring(0, 14);
@@ -67,11 +76,14 @@ function Chip({ item, section }: { item: unknown; section: SdpSection }) {
     <span
       className={cls}
       title={tip}
+      role={onChipClick ? 'button' : undefined}
+      onClick={onChipClick}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 3,
         padding: '1px 5px', borderRadius: 9999, fontSize: 10, fontWeight: 500,
         whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%',
         margin: '1px 0',
+        cursor: onChipClick ? 'pointer' : undefined,
       }}
     >
       <span className="chip-dot" style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0 }} />
@@ -88,9 +100,11 @@ export function TimelineGrid() {
   const getSection = usePlannerStore((s) => s.getSection);
   const fachdienstBauteile = useStammdatenStore((s) => s.fachdienstBauteile);
   const tlFilter = useUiStore((s) => s.tlFilter);
+  const fachdienstTlFilter = useUiStore((s) => s.fachdienstTlFilter);
   const tlCollapsed = useUiStore((s) => s.tlCollapsed);
   const toggleTlCollapsed = useUiStore((s) => s.toggleTlCollapsed);
   const openSdp = useUiStore((s) => s.openSdp);
+  const openIntervallePdf = useUiStore((s) => s.openIntervallePdf);
 
   const usedFachdienste = useMemo(() => getUsedFachdienste(workItems), [workItems]);
   const usedFunktionen = useMemo(() => getUsedPersonalFunctions(workItems), [workItems]);
@@ -120,6 +134,7 @@ export function TimelineGrid() {
         if (!collapsed) {
           if (id === 'tasks') {
             usedFachdienste.forEach((fd) => {
+              if (fachdienstTlFilter[fd] === false) return;
               result.push({ kind: 'fachdienst', sectionId: 'tasks', groupId: id, label: fd, fachdienst: fd });
               const bauteile = getBauteileInUseForFachdienst(workItems, fd, fachdienstBauteile[fd] ?? []);
               bauteile.forEach((bt) => {
@@ -139,7 +154,7 @@ export function TimelineGrid() {
     });
 
     return result;
-  }, [tlFilter, tlCollapsed, usedFachdienste, usedFunktionen, workItems, fachdienstBauteile]);
+  }, [tlFilter, fachdienstTlFilter, tlCollapsed, usedFachdienste, usedFunktionen, workItems, fachdienstBauteile]);
 
   // ─── Build columns ───────────────────────────────────────────────
 
@@ -219,6 +234,7 @@ export function TimelineGrid() {
                   getSection={getSection}
                   collapsed={!!tlCollapsed[meta.groupId]}
                   onOpen={openSdp}
+                  onOpenIntervallePdf={openIntervallePdf}
                 />
               );
             },
@@ -228,7 +244,7 @@ export function TimelineGrid() {
     });
 
     return cols;
-  }, [kwList, tlCollapsed, toggleTlCollapsed, getSection, openSdp]);
+  }, [kwList, tlCollapsed, toggleTlCollapsed, getSection, openSdp, openIntervallePdf]);
 
   // ─── Table instance ──────────────────────────────────────────────
 
@@ -380,6 +396,7 @@ function TlCell({
   getSection,
   collapsed,
   onOpen,
+  onOpenIntervallePdf,
 }: {
   kwId: string;
   dayIdx: number;
@@ -388,10 +405,31 @@ function TlCell({
   getSection: <T>(kwId: string, dayIdx: number, shift: ShiftId, section: SdpSection) => T[];
   collapsed: boolean;
   onOpen: (cell: { kwId: string; dayIdx: number; shift: ShiftId; grp?: SdpSection }) => void;
+  onOpenIntervallePdf: (p: { url: string; label?: string }) => void;
 }) {
   const handleClick = useCallback(() => {
     onOpen({ kwId, dayIdx, shift, grp: meta.sectionId });
   }, [kwId, dayIdx, shift, meta.sectionId, onOpen]);
+
+  const openSdpForIntervalle = useCallback(() => {
+    onOpen({ kwId, dayIdx, shift, grp: 'intervalle' });
+  }, [kwId, dayIdx, shift, onOpen]);
+
+  const handleIntervalleChipClick = useCallback(
+    (e: MouseEvent, it: unknown) => {
+      e.stopPropagation();
+      const row = it as Record<string, unknown>;
+      const file = (row.babDatei as string | undefined) ?? '';
+      openSdpForIntervalle();
+      if (isHttpUrl(file)) {
+        onOpenIntervallePdf({
+          url: file.trim(),
+          label: (row.babTitel as string) || (row.babNr as string) || undefined,
+        });
+      }
+    },
+    [openSdpForIntervalle, onOpenIntervallePdf],
+  );
 
   if (meta.kind === 'group-header') {
     if (collapsed) {
@@ -430,6 +468,8 @@ function TlCell({
     items = getSection<unknown>(kwId, dayIdx, shift, meta.sectionId);
   }
 
+  const isIntRow = meta.sectionId === 'intervalle';
+
   return (
     <div
       onClick={handleClick}
@@ -439,7 +479,16 @@ function TlCell({
       }}
     >
       {items.slice(0, 3).map((it, i) => (
-        <Chip key={(it as Record<string, unknown>).id as string ?? i} item={it} section={meta.sectionId} />
+        <Chip
+          key={(it as Record<string, unknown>).id as string ?? i}
+          item={it}
+          section={meta.sectionId}
+          onChipClick={
+            isIntRow
+              ? (e) => handleIntervalleChipClick(e, it)
+              : undefined
+          }
+        />
       ))}
       {items.length > 3 && (
         <span style={{ fontSize: 9, color: '#71717a', paddingLeft: 2 }}>+{items.length - 3}</span>

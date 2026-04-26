@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { usePlannerStore } from '@/stores/plannerStore';
 import { useUiStore } from '@/stores/uiStore';
 import { useStammdatenStore } from '@/stores/stammdatenStore';
 import { buildKw, getCurrentIsoWeek } from '@/lib/kwHelpers';
+import { getUsedFachdienste } from '@/lib/workItemHelpers';
 import type { SdpSection } from '@/types';
 import { TL_GROUPS, FACHDIENST_VALUES, SDP_FUNKTION_VALUES, SDP_RES_STATUS_VALUES } from '@/types';
 
@@ -11,28 +12,61 @@ import { TL_GROUPS, FACHDIENST_VALUES, SDP_FUNKTION_VALUES, SDP_RES_STATUS_VALUE
 export function TimelineFilterBar() {
   const tlFilter = useUiStore((s) => s.tlFilter);
   const toggleTlFilter = useUiStore((s) => s.toggleTlFilter);
+  const fachdienstTlFilter = useUiStore((s) => s.fachdienstTlFilter);
+  const toggleFachdienstTlFilter = useUiStore((s) => s.toggleFachdienstTlFilter);
+  const workItems = usePlannerStore((s) => s.workItems);
+
+  const fachdienstChips = useMemo(() => getUsedFachdienste(workItems), [workItems]);
 
   return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-      <span style={{ fontSize: 11, color: '#71717a', marginRight: 4 }}>Anzeigen:</span>
-      {TL_GROUPS.map((g) => {
-        const active = tlFilter[g.id];
-        return (
-          <button
-            key={g.id}
-            onClick={() => toggleTlFilter(g.id as keyof typeof tlFilter)}
-            style={{
-              padding: '3px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 500,
-              border: `1px solid ${active ? '#FF6300' : '#e4e4e7'}`,
-              background: active ? '#fff3eb' : '#fff',
-              color: active ? '#FF6300' : '#71717a',
-              cursor: 'pointer',
-            }}
-          >
-            {g.label}
-          </button>
-        );
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: '#71717a', marginRight: 4 }}>Anzeigen:</span>
+        {TL_GROUPS.map((g) => {
+          const active = tlFilter[g.id];
+          return (
+            <button
+              key={g.id}
+              onClick={() => toggleTlFilter(g.id as keyof typeof tlFilter)}
+              style={{
+                padding: '3px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 500,
+                border: `1px solid ${active ? '#FF6300' : '#e4e4e7'}`,
+                background: active ? '#fff3eb' : '#fff',
+                color: active ? '#FF6300' : '#71717a',
+                cursor: 'pointer',
+              }}
+            >
+              {g.label}
+            </button>
+          );
+        })}
+      </div>
+      {tlFilter.tasks && fachdienstChips.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: '#71717a', marginRight: 4 }}>Fachdienste:</span>
+          {fachdienstChips.map((fd) => {
+            const on = fachdienstTlFilter[fd] !== false;
+            return (
+              <button
+                key={fd}
+                onClick={() => toggleFachdienstTlFilter(fd)}
+                type="button"
+                style={{
+                  padding: '3px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 500,
+                  border: `1px solid ${on ? '#0ea5e9' : '#e4e4e7'}`,
+                  background: on ? '#e0f2fe' : '#f4f4f5',
+                  color: on ? '#0369a1' : '#a1a1aa',
+                  cursor: 'pointer',
+                  opacity: on ? 1 : 0.75,
+                }}
+                title={on ? 'Zeilen anzeigen — klicken zum Ausblenden' : 'Ausgeblendet — klicken zum Anzeigen'}
+              >
+                {fd}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

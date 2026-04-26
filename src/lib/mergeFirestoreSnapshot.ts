@@ -1,9 +1,11 @@
 import type {
+  IntervalleItem,
   KalenderWoche,
   MitarbeiterRow,
   ProjectSnapshot,
   ProjectStammdaten,
   ShiftConfig,
+  ShiftData,
   WorkItems,
 } from '@/types';
 
@@ -43,6 +45,96 @@ function newRowId(): string {
   return `m_${Math.random().toString(36).slice(2)}`;
 }
 
+function intRowId(): string {
+  return `int_${Math.random().toString(36).slice(2)}`;
+}
+
+/** Some Firestore / import rows use `BAB Titel`, `bab_titel`, etc. — we read them into canonical camelCase. */
+function firstNonEmptyField(obj: Record<string, unknown>, explicitKeys: string[], fuzzy: string): string | undefined {
+  for (const k of explicitKeys) {
+    if (Object.prototype.hasOwnProperty.call(obj, k)) {
+      const v = obj[k];
+      if (v != null && String(v).trim() !== '') return String(v).trim();
+    }
+  }
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === 'id' || v == null) continue;
+    const s = String(v).trim();
+    if (!s) continue;
+    const kn = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (kn === fuzzy) return s;
+  }
+  return undefined;
+}
+
+/** Normalize a single Intervall row from any sensible key shape (Excel / hand-edited JSON). */
+export function normalizeIntervalleItem(raw: Record<string, unknown>): IntervalleItem {
+  const id = typeof raw.id === 'string' && raw.id ? raw.id : intRowId();
+  return {
+    id,
+    babNr: firstNonEmptyField(raw, ['babNr', 'bab_nr', 'BABNr', 'BAB_Nr', 'BAB-Nr', 'BABN'], 'babnr'),
+    babDatei: firstNonEmptyField(raw, ['babDatei', 'bab_datei', 'BABDatei', 'BAB-Datei'], 'babdatei'),
+    babTitel: firstNonEmptyField(raw, [
+      'babTitel',
+      'bab_titel',
+      'BABTitel',
+      'BAB Titel',
+      'BAB_Titel',
+      'BabTitel',
+      'Babtitel',
+      'titel', // some feeds only have generic “titel”
+      'title',
+      'Titel',
+    ], 'babtitel'),
+    status: firstNonEmptyField(
+      raw,
+      ['status', 'Status', 'BABStatus', 'BAB_Status'],
+      'status',
+    ) as IntervalleItem['status'] | undefined,
+    gleissperrungen: firstNonEmptyField(raw, ['gleissperrungen', 'Gleissperrungen', 'Gleis_Sperrungen'], 'gleissperrungen'),
+    fahrleitungsausschaltungen: firstNonEmptyField(raw, [
+      'fahrleitungsausschaltungen',
+      'Fahrleitungsausschaltungen',
+      'Fahrleitungsschaltungen',
+    ], 'fahrleitungsausschaltungen'),
+    vonDatum: firstNonEmptyField(raw, ['vonDatum', 'von_datum', 'VonDatum', 'von', 'Von_Datum'], 'vondatum'),
+    vonZeit: firstNonEmptyField(raw, ['vonZeit', 'von_zeit', 'VonZeit', 'Von'], 'vonzeit'),
+    bisDatum: firstNonEmptyField(raw, ['bisDatum', 'bis_datum', 'BisDatum', 'bis', 'Bis_Datum'], 'bisdatum'),
+    bisZeit: firstNonEmptyField(raw, ['bisZeit', 'bis_zeit', 'BisZeit', 'Bis'], 'biszeit'),
+  };
+}
+
+const INT_MERGE_KEYS: (keyof IntervalleItem)[] = [
+  'babNr',
+  'babTitel',
+  'babDatei',
+  'status',
+  'gleissperrungen',
+  'fahrleitungsausschaltungen',
+  'vonDatum',
+  'vonZeit',
+  'bisDatum',
+  'bisZeit',
+];
+
+function mergeIntervalleRows(legacy: IntervalleItem[], v2: IntervalleItem[]): IntervalleItem[] {
+  const byId = new Map(legacy.map((r) => [r.id, r]));
+  return v2.map((row) => {
+    const o = byId.get(row.id);
+    if (!o) return row;
+    const p: IntervalleItem = { ...row };
+    for (const f of INT_MERGE_KEYS) {
+      const a = p[f];
+      const emptyA = a == null || (typeof a === 'string' && a.trim() === '');
+      const b = o[f];
+      if (emptyA && b != null && (typeof b !== 'string' || b.trim() !== '')) {
+        (p as unknown as Record<string, unknown>)[f] = b as string;
+      }
+    }
+    return p;
+  });
+}
+
 function normalizeMitarbeiterList(raw: unknown): MitarbeiterRow[] {
   if (!Array.isArray(raw)) return [];
   return (raw as Record<string, unknown>[]).map((r) => ({
@@ -57,10 +149,98 @@ function normalizeMitarbeiterList(raw: unknown): MitarbeiterRow[] {
   }));
 }
 
-/** Rewrite workItems keys from legacy `||` separators to `__`. */
+const SHIFT_SECTIONS: (keyof ShiftData)[] = [
+  'intervalle',
+  'tasks',
+  'personal',
+  'inventar',
+  'material',
+  'fremdleistung',
+];
+
+/** `kw_2025_30__6__N` and `kw_2025_30__06__N` or `n` / `N` must resolve to the same key as the grid. */
+export function canonicalizeWorkItemKey(key: string): string {
+  if (!key.includes(REACT_KEY_SEP) && !key.includes(LEGACY_KEY_SEP)) return key;
+  const normalized = key.includes(LEGACY_KEY_SEP) && !key.includes(REACT_KEY_SEP)
+    ? (() => {
+        const p = key.split(LEGACY_KEY_SEP);
+        return p.length === 3 ? `${p[0]}${REACT_KEY_SEP}${p[1]}${REACT_KEY_SEP}${p[2]}` : key;
+      })()
+    : key;
+  const parts = normalized.split('__');
+  if (parts.length < 3) return normalized;
+  const shiftRaw = parts.pop() as string;
+  const dayRaw = parts.pop() as string;
+  const kwId = parts.join('__');
+  const d = parseInt(String(dayRaw), 10);
+  if (!Number.isFinite(d) || d < 0 || d > 6) return normalized;
+  let sh = String(shiftRaw).trim();
+  if (sh.toLowerCase() === 'nacht' || sh.toLowerCase() === 'night') sh = 'N';
+  else if (sh.toLowerCase() === 'tag' || sh.toLowerCase() === 'day') sh = 'T';
+  else sh = sh.toUpperCase();
+  if (sh !== 'T' && sh !== 'N') return normalized;
+  return `${kwId}__${String(d)}__${sh}`;
+}
+
+/** Firestore / imports sometimes store a section as a map or empty object. */
+function coerceSectionArray<T>(v: unknown): T[] {
+  if (Array.isArray(v)) return v as T[];
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    const vals = Object.values(o);
+    if (vals.length > 0 && typeof vals[0] === 'object') return vals as T[];
+  }
+  return [];
+}
+
+function normalizeOneCell(val: unknown): Partial<ShiftData> {
+  if (!val || typeof val !== 'object') return {};
+  const c = val as Record<string, unknown>;
+  const out: Partial<ShiftData> = {};
+  for (const s of SHIFT_SECTIONS) {
+    if (s === 'intervalle') {
+      const rawList = coerceSectionArray<Record<string, unknown>>(c[s] as unknown);
+      out[s] = rawList.map((r) => normalizeIntervalleItem(r)) as ShiftData[typeof s];
+    } else {
+      out[s] = coerceSectionArray(c[s] as unknown) as ShiftData[typeof s];
+    }
+  }
+  return out;
+}
+
+/** If v2 snapshot overwrote a cell with empty `intervalle` while legacy had rows, keep legacy per section. */
+function mergeWorkItemCell(
+  legacy: unknown,
+  fromV2: unknown,
+): Partial<ShiftData> {
+  const a = normalizeOneCell(legacy);
+  const b = normalizeOneCell(fromV2);
+  const m: Partial<ShiftData> = { ...a, ...b };
+  for (const s of SHIFT_SECTIONS) {
+    const av = a[s] as unknown[] | undefined;
+    const bv = b[s] as unknown[] | undefined;
+    const aLen = Array.isArray(av) ? av.length : 0;
+    const bLen = Array.isArray(bv) ? bv.length : 0;
+    if (s === 'intervalle' && aLen > 0 && bLen > 0) {
+      m[s] = mergeIntervalleRows(av as IntervalleItem[], bv as IntervalleItem[]) as ShiftData[typeof s];
+    } else if (bLen > 0) m[s] = bv as ShiftData[typeof s];
+    else if (aLen > 0) m[s] = av as ShiftData[typeof s];
+  }
+  return m;
+}
+
+export function mergeWorkItemMaps(legacy: WorkItems, v2: WorkItems): WorkItems {
+  const out: WorkItems = { ...legacy };
+  for (const [k, v2cell] of Object.entries(v2)) {
+    out[k] = mergeWorkItemCell(legacy[k], v2cell) as WorkItems[string];
+  }
+  return out;
+}
+
+/** Rewrite workItems keys from legacy `||` separators to `__`, canonicalize day/shift, merge duplicate keys. */
 export function normalizeWorkItemKeys(raw: unknown): WorkItems {
   if (!raw || typeof raw !== 'object') return {};
-  const out: WorkItems = {};
+  const merged: WorkItems = {};
   for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
     let nk = key;
     if (key.includes(LEGACY_KEY_SEP) && !key.includes(REACT_KEY_SEP)) {
@@ -69,9 +249,14 @@ export function normalizeWorkItemKeys(raw: unknown): WorkItems {
         nk = `${parts[0]}${REACT_KEY_SEP}${parts[1]}${REACT_KEY_SEP}${parts[2]}`;
       }
     }
-    out[nk] = val as WorkItems[string];
+    nk = canonicalizeWorkItemKey(nk);
+    if (merged[nk]) {
+      merged[nk] = mergeWorkItemCell(merged[nk], val) as WorkItems[string];
+    } else {
+      merged[nk] = normalizeOneCell(val) as WorkItems[string];
+    }
   }
-  return out;
+  return merged;
 }
 
 function isNonEmptyKalenderWocheList(x: unknown): x is KalenderWoche[] {
@@ -137,7 +322,7 @@ export function extractProjectSnapshot(data: Record<string, unknown>): ProjectSn
         ? normalizeWorkItemKeys((pd as Record<string, unknown>).workItems ?? {})
         : {};
     const v2WorkItems = normalizeWorkItemKeys(v2.workItems ?? {});
-    const workItems = { ...legacyWorkItems, ...v2WorkItems };
+    const workItems = mergeWorkItemMaps(legacyWorkItems, v2WorkItems);
     const stV2: Record<string, unknown> = {
       ...(stExtra ?? {}),
       projektname: str(stExtra?.projektname) || str(data.name),

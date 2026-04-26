@@ -32,7 +32,15 @@ export function getItemLabel(item: Record<string, unknown>, sectionId: SdpSectio
   if (sectionId === 'inventar') return (item.geraet as string) || '–';
   if (sectionId === 'material') return (item.material as string) || '–';
   if (sectionId === 'fremdleistung') return (item.firma as string) || '–';
-  if (sectionId === 'intervalle') return (item.babNr as string) || (item.babTitel as string) || '–';
+  if (sectionId === 'intervalle') {
+    return (
+      (item.babNr as string) ||
+      (item.babTitel as string) ||
+      (item.gleissperrungen as string) ||
+      (item.status as string) ||
+      '–'
+    );
+  }
   return '–';
 }
 
