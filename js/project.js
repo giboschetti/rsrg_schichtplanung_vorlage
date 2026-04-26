@@ -408,6 +408,11 @@ async function loadProjectForUser(user, projectId) {
     window.location.reload();
     return false;
   }
+  // No reload: data may have been updated externally (e.g. sync script).
+  // Re-read workItems from the freshly-written localStorage into memory and re-render.
+  if (typeof window.loadWorkItemsLS === "function") window.loadWorkItemsLS();
+  if (typeof window.renderTimeline === "function") window.renderTimeline();
+  if (typeof window.renderKWList === "function") window.renderKWList();
   state.lastSnapshotHash = snapshotHash(snapshot);
   setCloudState("Projekt geladen");
   await refreshMemberUi();
