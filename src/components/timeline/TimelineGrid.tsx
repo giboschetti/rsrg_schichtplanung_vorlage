@@ -1,4 +1,4 @@
-import { useMemo, useRef, useCallback, type MouseEvent } from 'react';
+import { useMemo, useRef, useCallback, useEffect, type MouseEvent } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,7 +10,13 @@ import {
 } from '@tanstack/react-table';
 import { usePlannerStore } from '@/stores/plannerStore';
 import { useStammdatenStore } from '@/stores/stammdatenStore';
-import { useUiStore } from '@/stores/uiStore';
+import { useUiStore, type SelectedCell } from '@/stores/uiStore';
+import {
+  useTimelineSelectionStore,
+  makeBadgeRef,
+  badgeKey,
+} from '@/stores/timelineSelectionStore';
+import { handleTimelineGridKeyDown } from '@/lib/timelineBulkActions';
 import {
   getItemLabel,
   chipClassFromResStatus,
@@ -23,33 +29,9 @@ import {
 } from '@/lib/workItemHelpers';
 import { tlDayHeader } from '@/lib/dateHelpers';
 import { isHttpUrl } from '@/lib/utils';
-import type {
-  KalenderWoche,
-  SdpSection,
-  ShiftId,
-  TaskItem,
-  PersonalItem,
-} from '@/types';
+import type { KalenderWoche, SdpSection, ShiftId, TaskItem, PersonalItem } from '@/types';
 import { TL_DAYS, TL_SHIFTS } from '@/types';
-
-// ─── Row types ──────────────────────────────────────────────────────────────
-
-type RowKind =
-  | 'group-header'
-  | 'fachdienst'
-  | 'bauteil'
-  | 'funktion'
-  | 'simple';
-
-interface TlRowMeta {
-  kind: RowKind;
-  sectionId: SdpSection;
-  groupId: string;
-  label: string;
-  fachdienst?: string;
-  bauteil?: string;
-  funktion?: string;
-}
+import type { TlRowMeta } from '@/types/timeline';
 
 // ─── Column id format ────────────────────────────────────────────────────────
 
@@ -62,28 +44,51 @@ function colId(kwId: string, dayIdx: number, shiftId: ShiftId): string {
 function Chip({
   item,
   section,
-  onChipClick,
+  selected,
+  onIntervalleClick,
+  onSelectMouseDown,
 }: {
   item: unknown;
   section: SdpSection;
-  onChipClick?: (e: MouseEvent) => void;
+  selected?: boolean;
+  onIntervalleClick?: (e: MouseEvent) => void;
+  onSelectMouseDown?: (e: MouseEvent) => void;
 }) {
   const it = item as Record<string, unknown>;
   const cls = chipClassFromResStatus(it, section);
   const label = getItemLabel(it, section).substring(0, 14);
   const tip = chipTitle(it, section) || label;
+  const interactive = !!(onIntervalleClick || onSelectMouseDown);
   return (
     <span
       className={cls}
       title={tip}
-      role={onChipClick ? 'button' : undefined}
-      onClick={onChipClick}
+      role={interactive ? 'button' : undefined}
+      onMouseDown={(e) => {
+        if (onSelectMouseDown) {
+          e.stopPropagation();
+          onSelectMouseDown(e);
+        } else if (onIntervalleClick) {
+          e.stopPropagation();
+        }
+      }}
+      onClick={
+        onIntervalleClick
+          ? (e) => {
+              e.stopPropagation();
+              onIntervalleClick(e);
+            }
+          : onSelectMouseDown
+            ? (e) => e.stopPropagation()
+            : undefined
+      }
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 3,
         padding: '1px 5px', borderRadius: 9999, fontSize: 10, fontWeight: 500,
         whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%',
         margin: '1px 0',
-        cursor: onChipClick ? 'pointer' : undefined,
+        cursor: interactive ? 'pointer' : undefined,
+        boxShadow: selected ? '0 0 0 2px #FF6300' : undefined,
       }}
     >
       <span className="chip-dot" style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0 }} />
@@ -106,8 +111,21 @@ export function TimelineGrid() {
   const openSdp = useUiStore((s) => s.openSdp);
   const openIntervallePdf = useUiStore((s) => s.openIntervallePdf);
 
+  const handleShiftHeaderClick = useCallback(
+    (kwId: string, dayIdx: number, shift: ShiftId) => {
+      openSdp({ kwId, dayIdx, shift, sdpCollapseAll: true });
+    },
+    [openSdp],
+  );
+
   const usedFachdienste = useMemo(() => getUsedFachdienste(workItems), [workItems]);
   const usedFunktionen = useMemo(() => getUsedPersonalFunctions(workItems), [workItems]);
+
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => handleTimelineGridKeyDown(e);
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, []);
 
   // ─── Build rows ──────────────────────────────────────────────────
 
@@ -294,7 +312,11 @@ export function TimelineGrid() {
           minWidth: labelColWidth + totalColWidth,
         }}
       >
-        <TimelineThead kwList={kwList} labelColWidth={labelColWidth} />
+        <TimelineThead
+          kwList={kwList}
+          labelColWidth={labelColWidth}
+          onShiftHeaderClick={handleShiftHeaderClick}
+        />
         <tbody>
           {table.getRowModel().rows.map((row) => (
             <TlBodyRow
@@ -404,12 +426,37 @@ function TlCell({
   meta: TlRowMeta;
   getSection: <T>(kwId: string, dayIdx: number, shift: ShiftId, section: SdpSection) => T[];
   collapsed: boolean;
-  onOpen: (cell: { kwId: string; dayIdx: number; shift: ShiftId; grp?: SdpSection }) => void;
+  onOpen: (cell: SelectedCell) => void;
   onOpenIntervallePdf: (p: { url: string; label?: string }) => void;
 }) {
-  const handleClick = useCallback(() => {
-    onOpen({ kwId, dayIdx, shift, grp: meta.sectionId });
-  }, [kwId, dayIdx, shift, meta.sectionId, onOpen]);
+  const selected = useTimelineSelectionStore((s) => s.selected);
+
+  const leafItems = useMemo(() => {
+    if (meta.kind === 'bauteil') {
+      const tasks = getSection<TaskItem>(kwId, dayIdx, shift, 'tasks');
+      return getTasksByFachdienstBauteil(tasks, meta.fachdienst!, meta.bauteil!);
+    }
+    if (meta.kind === 'funktion') {
+      const personal = getSection<PersonalItem>(kwId, dayIdx, shift, 'personal');
+      return getPersonalByFunktion(personal, meta.funktion!);
+    }
+    if (meta.kind === 'group-header' || meta.kind === 'fachdienst') return [];
+    return getSection<unknown>(kwId, dayIdx, shift, meta.sectionId);
+  }, [kwId, dayIdx, shift, meta, getSection]);
+
+  const handleCellBackground = useCallback(() => {
+    if (meta.kind === 'fachdienst') {
+      useTimelineSelectionStore.getState().setLastPasteContext({ kwId, dayIdx, shift, meta });
+      useTimelineSelectionStore.getState().clearSelection();
+      return;
+    }
+    if (meta.kind === 'group-header') {
+      const all = getSection<unknown>(kwId, dayIdx, shift, meta.sectionId);
+      useTimelineSelectionStore.getState().selectAllBadgesInCell(kwId, dayIdx, shift, meta, all);
+      return;
+    }
+    useTimelineSelectionStore.getState().selectAllBadgesInCell(kwId, dayIdx, shift, meta, leafItems);
+  }, [kwId, dayIdx, shift, meta, getSection, leafItems]);
 
   const openSdpForIntervalle = useCallback(() => {
     onOpen({ kwId, dayIdx, shift, grp: 'intervalle' });
@@ -436,7 +483,7 @@ function TlCell({
       const allItems = getSection<unknown>(kwId, dayIdx, shift, meta.sectionId);
       const count = allItems.length;
       return (
-        <div onClick={handleClick} style={{ padding: '4px 6px', height: '100%', cursor: 'pointer' }}>
+        <div onClick={handleCellBackground} style={{ padding: '4px 6px', height: '100%', cursor: 'pointer' }}>
           {count > 0 && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -449,47 +496,54 @@ function TlCell({
         </div>
       );
     }
-    return <div onClick={handleClick} style={{ height: '100%', minHeight: 36, cursor: 'pointer' }} />;
+    return <div onClick={handleCellBackground} style={{ height: '100%', minHeight: 36, cursor: 'pointer' }} />;
   }
 
   if (meta.kind === 'fachdienst') {
-    return <div onClick={handleClick} style={{ height: '100%', cursor: 'pointer' }} />;
+    return <div onClick={handleCellBackground} style={{ height: '100%', cursor: 'pointer' }} />;
   }
 
-  let items: unknown[] = [];
-
-  if (meta.kind === 'bauteil') {
-    const tasks = getSection<TaskItem>(kwId, dayIdx, shift, 'tasks');
-    items = getTasksByFachdienstBauteil(tasks, meta.fachdienst!, meta.bauteil!);
-  } else if (meta.kind === 'funktion') {
-    const personal = getSection<PersonalItem>(kwId, dayIdx, shift, 'personal');
-    items = getPersonalByFunktion(personal, meta.funktion!);
-  } else {
-    items = getSection<unknown>(kwId, dayIdx, shift, meta.sectionId);
-  }
-
+  const items = leafItems;
   const isIntRow = meta.sectionId === 'intervalle';
 
   return (
     <div
-      onClick={handleClick}
+      onClick={handleCellBackground}
       style={{
         padding: '3px 5px', height: '100%', cursor: 'pointer',
         display: 'flex', flexDirection: 'column', gap: 1, justifyContent: 'flex-start',
       }}
     >
-      {items.slice(0, 3).map((it, i) => (
-        <Chip
-          key={(it as Record<string, unknown>).id as string ?? i}
-          item={it}
-          section={meta.sectionId}
-          onChipClick={
-            isIntRow
-              ? (e) => handleIntervalleChipClick(e, it)
-              : undefined
-          }
-        />
-      ))}
+      {items.map((it, idx) => {
+        if (idx >= 3) return null;
+        const ref = makeBadgeRef(it, kwId, dayIdx, shift, meta);
+        const sel =
+          ref != null && selected.some((r) => badgeKey(r) === badgeKey(ref));
+        return (
+          <Chip
+            key={(it as Record<string, unknown>).id as string ?? idx}
+            item={it}
+            section={meta.sectionId}
+            selected={!isIntRow && sel}
+            onIntervalleClick={isIntRow ? (e) => handleIntervalleChipClick(e, it) : undefined}
+            onSelectMouseDown={
+              !isIntRow && ref
+                ? (e) => {
+                    useTimelineSelectionStore.getState().setLastPasteContext({
+                      kwId,
+                      dayIdx,
+                      shift,
+                      meta,
+                    });
+                    useTimelineSelectionStore.getState().activateBadge(ref, meta, items, idx, {
+                      shiftKey: e.shiftKey,
+                    });
+                  }
+                : undefined
+            }
+          />
+        );
+      })}
       {items.length > 3 && (
         <span style={{ fontSize: 9, color: '#71717a', paddingLeft: 2 }}>+{items.length - 3}</span>
       )}
@@ -504,9 +558,11 @@ const COLS_PER_KW = TL_DAYS.length * TL_SHIFTS.length;
 function TimelineThead({
   kwList,
   labelColWidth,
+  onShiftHeaderClick,
 }: {
   kwList: KalenderWoche[];
   labelColWidth: number;
+  onShiftHeaderClick: (kwId: string, dayIdx: number, shift: ShiftId) => void;
 }) {
   return (
     <thead>
@@ -577,12 +633,18 @@ function TimelineThead({
               return (
                 <th
                   key={`${kw.id}-${dayIdx}-${sh.id}`}
+                  title="Schicht im Panel bearbeiten"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShiftHeaderClick(kw.id, dayIdx, sh.id as ShiftId);
+                  }}
                   style={{
                     textAlign: 'center', fontSize: 9, fontWeight: 600, padding: '2px',
                     borderBottom: '2px solid #e4e4e7',
                     borderLeft: isKwStart ? '2px solid #e4e4e7' : isDayStart ? '1px solid #f0f0f0' : 'none',
                     color: sh.id === 'N' ? '#1d4ed8' : '#374151',
                     background: sh.id === 'N' ? '#eff6ff' : '#fff',
+                    cursor: 'pointer',
                   }}
                 >
                   {sh.id}

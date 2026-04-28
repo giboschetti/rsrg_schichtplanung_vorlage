@@ -2,11 +2,13 @@ import { create } from 'zustand';
 import type { SdpSection, ShiftId, TlGroup } from '@/types';
 import { TL_GROUPS } from '@/types';
 
-interface SelectedCell {
+export interface SelectedCell {
   kwId: string;
   dayIdx: number;
   shift: ShiftId;
   grp?: SdpSection;
+  /** Shift header (T/N) open: all SDP sections start collapsed */
+  sdpCollapseAll?: boolean;
 }
 
 interface TlFilterState {

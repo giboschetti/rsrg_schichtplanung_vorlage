@@ -139,11 +139,27 @@ export function getPersonalByFunktion(personal: PersonalItem[], funktion: string
 
 // ─── Migration helper (old task shape → new) ────────────────────────────────
 
+/** Bauteil from canonical keys, legacy `bauphaseBauteil`, or fuzzy keys (e.g. `Bauteil` in Firestore). */
+function pickTaskBauteil(raw: Record<string, unknown>): string {
+  const direct = raw.bauteil;
+  if (direct != null && String(direct).trim() !== '') return String(direct).trim();
+  const legacy = raw.bauphaseBauteil;
+  if (legacy != null && String(legacy).trim() !== '') return String(legacy).trim();
+  for (const [k, v] of Object.entries(raw)) {
+    if (k === 'id' || v == null) continue;
+    const s = String(v).trim();
+    if (!s) continue;
+    const kn = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (kn === 'bauteil' || kn === 'bauphasebauteil') return s;
+  }
+  return '';
+}
+
 export function migrateTaskItem(raw: Record<string, unknown>): TaskItem {
   return {
     id: (raw.id as string) || Math.random().toString(36).slice(2),
     fachdienst: (raw.fachdienst as string) ?? 'Andere',
-    bauteil: (raw.bauteil as string) ?? (raw.bauphaseBauteil as string) ?? '',
+    bauteil: pickTaskBauteil(raw),
     taetigkeit: (raw.taetigkeit as string) ?? (raw.name as string) ?? '',
     beschreibung: (raw.beschreibung as string) ?? '',
     location: (raw.location as string) ?? '',

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { loadProject, saveProjectSnapshot } from '@/services/firestoreService';
 import { usePlannerStore } from '@/stores/plannerStore';
 import { useStammdatenStore, DEFAULT_SHIFT_CONFIG } from '@/stores/stammdatenStore';
+import { useUiStore } from '@/stores/uiStore';
 import type { ProjectStamFormFields, ProjectSnapshot } from '@/types';
 import { EMPTY_PROJECT_STAM_FORM } from '@/types';
 
@@ -21,17 +22,11 @@ export function useProject(projectId: string | undefined): UseProjectReturn {
   const setKwList = usePlannerStore((s) => s.setKwList);
   const setWorkItems = usePlannerStore((s) => s.setWorkItems);
   const markClean = usePlannerStore((s) => s.markClean);
-  const kwList = usePlannerStore((s) => s.kwList);
-  const workItems = usePlannerStore((s) => s.workItems);
 
   const setFachdienstBauteile = useStammdatenStore((s) => s.setFachdienstBauteile);
   const setShiftConfig = useStammdatenStore((s) => s.setShiftConfig);
   const setProjectForm = useStammdatenStore((s) => s.setProjectForm);
   const setMitarbeiter = useStammdatenStore((s) => s.setMitarbeiter);
-  const fachdienstBauteile = useStammdatenStore((s) => s.fachdienstBauteile);
-  const shiftConfig = useStammdatenStore((s) => s.shiftConfig);
-  const projectForm = useStammdatenStore((s) => s.projectForm);
-  const mitarbeiter = useStammdatenStore((s) => s.mitarbeiter);
 
   useEffect(() => {
     if (!projectId) {
@@ -100,24 +95,30 @@ export function useProject(projectId: string | undefined): UseProjectReturn {
 
   const save = useCallback(async () => {
     if (!projectId) return;
+    if (!usePlannerStore.getState().dirty) return;
     setSaving(true);
     try {
+      const pl = usePlannerStore.getState();
+      const st = useStammdatenStore.getState();
       const snapshot: ProjectSnapshot = {
-        kwList,
-        workItems,
-        mitarbeiter,
+        kwList: pl.kwList,
+        workItems: pl.workItems,
+        mitarbeiter: st.mitarbeiter,
         stammdaten: {
-          fachdienstBauteile,
-          shiftConfig,
-          ...projectForm,
+          fachdienstBauteile: st.fachdienstBauteile,
+          shiftConfig: st.shiftConfig,
+          ...st.projectForm,
         },
       };
       await saveProjectSnapshot(projectId, snapshot);
       markClean();
+      useUiStore.getState().showToast('Gespeichert');
+    } catch (err) {
+      useUiStore.getState().showToast(`Speichern fehlgeschlagen: ${String(err)}`);
     } finally {
       setSaving(false);
     }
-  }, [projectId, kwList, workItems, fachdienstBauteile, shiftConfig, projectForm, mitarbeiter, markClean]);
+  }, [projectId, markClean]);
 
   return { loading, error, save, saving };
 }

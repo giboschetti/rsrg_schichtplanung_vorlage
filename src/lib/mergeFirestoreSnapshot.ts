@@ -6,8 +6,10 @@ import type {
   ProjectStammdaten,
   ShiftConfig,
   ShiftData,
+  TaskItem,
   WorkItems,
 } from '@/types';
+import { migrateTaskItem } from '@/lib/workItemHelpers';
 
 /** Legacy vanilla app used `kwId||dayIdx||shift` — React uses `__` (plannerStore wiKey). */
 const LEGACY_KEY_SEP = '||';
@@ -201,9 +203,42 @@ function normalizeOneCell(val: unknown): Partial<ShiftData> {
     if (s === 'intervalle') {
       const rawList = coerceSectionArray<Record<string, unknown>>(c[s] as unknown);
       out[s] = rawList.map((r) => normalizeIntervalleItem(r)) as ShiftData[typeof s];
+    } else if (s === 'tasks') {
+      const rawList = coerceSectionArray<Record<string, unknown>>(c[s] as unknown);
+      out[s] = rawList.map((r) => migrateTaskItem(r)) as ShiftData[typeof s];
     } else {
       out[s] = coerceSectionArray(c[s] as unknown) as ShiftData[typeof s];
     }
+  }
+  return out;
+}
+
+/**
+ * Merge legacy + v2 raw task rows by `id`: v2 fields win, legacy fills missing keys
+ * (e.g. `bauphaseBauteil` only on `plannerData` while `snapshot` has empty `bauteil`).
+ */
+function mergeTaskRowsRaw(
+  legacyRaw: Record<string, unknown>[],
+  v2Raw: Record<string, unknown>[],
+): TaskItem[] {
+  const legById = new Map<string, Record<string, unknown>>();
+  for (const row of legacyRaw) {
+    const id = typeof row.id === 'string' && row.id ? row.id : '';
+    if (id) legById.set(id, row);
+  }
+  const seen = new Set<string>();
+  const out: TaskItem[] = [];
+  for (const row of v2Raw) {
+    const id = typeof row.id === 'string' && row.id ? row.id : '';
+    if (id) seen.add(id);
+    const lo = id ? legById.get(id) : undefined;
+    const mergedRaw = lo ? ({ ...lo, ...row } as Record<string, unknown>) : row;
+    out.push(migrateTaskItem(mergedRaw));
+  }
+  for (const row of legacyRaw) {
+    const id = typeof row.id === 'string' && row.id ? row.id : '';
+    if (!id || seen.has(id)) continue;
+    out.push(migrateTaskItem(row));
   }
   return out;
 }
@@ -213,6 +248,9 @@ function mergeWorkItemCell(
   legacy: unknown,
   fromV2: unknown,
 ): Partial<ShiftData> {
+  const legCell = legacy && typeof legacy === 'object' ? (legacy as Record<string, unknown>) : {};
+  const v2Cell = fromV2 && typeof fromV2 === 'object' ? (fromV2 as Record<string, unknown>) : {};
+
   const a = normalizeOneCell(legacy);
   const b = normalizeOneCell(fromV2);
   const m: Partial<ShiftData> = { ...a, ...b };
@@ -223,6 +261,10 @@ function mergeWorkItemCell(
     const bLen = Array.isArray(bv) ? bv.length : 0;
     if (s === 'intervalle' && aLen > 0 && bLen > 0) {
       m[s] = mergeIntervalleRows(av as IntervalleItem[], bv as IntervalleItem[]) as ShiftData[typeof s];
+    } else if (s === 'tasks' && (aLen > 0 || bLen > 0)) {
+      const legTasks = coerceSectionArray<Record<string, unknown>>(legCell.tasks);
+      const v2Tasks = coerceSectionArray<Record<string, unknown>>(v2Cell.tasks);
+      m[s] = mergeTaskRowsRaw(legTasks, v2Tasks) as ShiftData[typeof s];
     } else if (bLen > 0) m[s] = bv as ShiftData[typeof s];
     else if (aLen > 0) m[s] = av as ShiftData[typeof s];
   }

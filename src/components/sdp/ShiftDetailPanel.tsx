@@ -51,12 +51,15 @@ export function ShiftDetailPanel() {
         style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.08)' }}
       />
       {/* Panel */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
-        background: '#fff', borderTop: '2px solid #FF6300',
-        boxShadow: '0 -4px 24px rgba(0,0,0,0.10)',
-        maxHeight: '55vh', overflow: 'auto', pointerEvents: 'auto',
-      }}>
+      <div
+        data-sdp-panel
+        style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
+          background: '#fff', borderTop: '2px solid #FF6300',
+          boxShadow: '0 -4px 24px rgba(0,0,0,0.10)',
+          maxHeight: '55vh', overflow: 'auto', pointerEvents: 'auto',
+        }}
+      >
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -83,7 +86,9 @@ export function ShiftDetailPanel() {
               kwId={kwId}
               dayIdx={dayIdx}
               shift={shift}
-              defaultExpanded={section === (selectedCell.grp ?? 'tasks')}
+              defaultExpanded={
+                !selectedCell.sdpCollapseAll && section === (selectedCell.grp ?? 'tasks')
+              }
             />
           ))}
         </div>

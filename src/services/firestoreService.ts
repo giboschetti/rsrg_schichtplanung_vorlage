@@ -17,6 +17,27 @@ import type { Project, ProjectSnapshot } from '@/types';
 
 const PROJECTS_COL = 'projects';
 
+/**
+ * Firestore rejects `undefined` anywhere in document data. Strip keys/elements
+ * so saves never fail on optional TS fields (tasks, mitarbeiter, kwList, …).
+ */
+function stripUndefinedForFirestore<T>(value: T): T {
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .filter((x) => x !== undefined)
+      .map((x) => stripUndefinedForFirestore(x)) as T;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v === undefined) continue;
+    out[k] = stripUndefinedForFirestore(v);
+  }
+  return out as T;
+}
+
 // ─── List projects owned by a user ─────────────────────────────────────────
 
 export async function listUserProjects(uid: string): Promise<Project[]> {
@@ -84,7 +105,8 @@ export async function saveProjectSnapshot(
   snapshot: ProjectSnapshot,
 ): Promise<void> {
   const ref = doc(db, PROJECTS_COL, projectId);
-  await setDoc(ref, { snapshot, updatedAt: serverTimestamp() }, { merge: true });
+  const snapshotClean = stripUndefinedForFirestore(snapshot) as ProjectSnapshot;
+  await setDoc(ref, { snapshot: snapshotClean, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 // ─── Delete a project ───────────────────────────────────────────────────────

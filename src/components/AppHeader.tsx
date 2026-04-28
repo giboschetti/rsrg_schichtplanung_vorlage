@@ -81,7 +81,8 @@ export function AppHeader({ onSave, saving }: AppHeaderProps) {
           PDF
         </button>
         <button
-          onClick={onSave}
+          type="button"
+          onClick={() => void onSave()}
           disabled={saving || !dirty}
           style={{
             padding: '5px 14px', borderRadius: 6, border: 'none',
