@@ -1,49 +1,15 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Schichtplanung Projekte</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&amp;family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
-  <div class="app-header">
-    <div class="app-logo">
-      <img src="https://raw.githubusercontent.com/giboschetti/rsrg_schichtplanung_vorlage/main/assets/logo-rhomberg-sersa.jpg"
-           alt="RSRG" height="36" style="display:block;object-fit:contain;"
-           onerror="this.style.display='none';document.getElementById('logo-fallback').style.display='flex'">
-      <div id="logo-fallback" class="logo-mark" style="display:none;">SP</div>
-      <div class="header-divider"></div>
-      <div class="app-logo-text">
-        <h1>Schichtplanung</h1>
-        <div class="sub">Projektübersicht</div>
-      </div>
-    </div>
-    <div class="header-actions">
-      <span class="header-proj" id="authUserLabel"></span>
-      <button id="btnSignIn" class="btn btn-accent" type="button">Mit Google anmelden</button>
-      <button id="btnSignOut" class="btn btn-ghost" type="button">Abmelden</button>
-    </div>
-  </div>
-
-  <main class="dashboard-main">
-    <section class="section-card">
-      <div class="section-hdr">
-        <span>Meine Projekte</span>
-      </div>
-      <div class="section-body">
-        <div class="dashboard-create-row">
-          <input id="newProjectName" class="dashboard-input" type="text" placeholder="Neues Projekt, z. B. SZU Zürich Los 1">
-          <button id="btnCreateProject" class="btn btn-accent" type="button">Projekt erstellen</button>
-        </div>
-        <div id="dashboardStatus" class="dashboard-status"></div>
-        <div id="projectsList" class="projects-list"></div>
-      </div>
-    </section>
-  </main>
-
-  <script type="module" src="js/dashboard.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RSRG Schichtplanung</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

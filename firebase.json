@@ -1,16 +1,18 @@
 {
   "hosting": {
-    "public": ".",
+    "public": "dist",
     "ignore": [
       "firebase.json",
       ".firebaserc",
-      "**/.*",
-      "**/node_modules/**",
-      "**/*.patch",
-      "README.md",
-      "_build_from_monolith.py"
+      "**/.*"
     ],
-    "cleanUrls": true
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
   },
   "firestore": {
     "rules": "firestore.rules"
