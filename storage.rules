@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // BAB PDF files synced by the bab_sync cron — public read, authenticated write
+    match /bab-files/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    // Everything else requires authentication
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
