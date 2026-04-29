@@ -28,7 +28,7 @@ import {
   getPersonalByFunktion,
 } from '@/lib/workItemHelpers';
 import { tlDayHeader } from '@/lib/dateHelpers';
-import { isHttpUrl } from '@/lib/utils';
+import { isHttpUrl, intervallePdfUrl } from '@/lib/utils';
 import type { KalenderWoche, SdpSection, ShiftId, TaskItem, PersonalItem } from '@/types';
 import { TL_DAYS, TL_SHIFTS } from '@/types';
 import type { TlRowMeta } from '@/types/timeline';
@@ -466,8 +466,8 @@ function TlCell({
     (e: MouseEvent, it: unknown) => {
       e.stopPropagation();
       const row = it as Record<string, unknown>;
-      const file = (row.babDatei as string | undefined) ?? '';
       openSdpForIntervalle();
+      const file = intervallePdfUrl(row);
       if (isHttpUrl(file)) {
         onOpenIntervallePdf({
           url: file.trim(),

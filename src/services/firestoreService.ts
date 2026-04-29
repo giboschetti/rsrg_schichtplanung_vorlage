@@ -10,6 +10,8 @@ import {
   where,
   serverTimestamp,
   Timestamp,
+  onSnapshot,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { extractProjectSnapshot } from '@/lib/mergeFirestoreSnapshot';
@@ -77,11 +79,7 @@ export async function createProject(name: string, uid: string): Promise<Project>
 
 // ─── Load a project ─────────────────────────────────────────────────────────
 
-export async function loadProject(projectId: string): Promise<Project | null> {
-  const ref = doc(db, PROJECTS_COL, projectId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  const d = snap.data() as Record<string, unknown>;
+function docToProject(docId: string, d: Record<string, unknown>): Project {
   const cr = d.createdAt;
   const createdAt =
     typeof cr === 'string'
@@ -90,12 +88,44 @@ export async function loadProject(projectId: string): Promise<Project | null> {
         ? cr.toDate().toISOString()
         : new Date().toISOString();
   return {
-    id: snap.id,
+    id: docId,
     name: String(d.name ?? 'Projekt'),
     ownerId: String(d.ownerId ?? ''),
     createdAt,
     snapshot: extractProjectSnapshot(d),
   } as Project;
+}
+
+export async function loadProject(projectId: string): Promise<Project | null> {
+  const ref = doc(db, PROJECTS_COL, projectId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  return docToProject(snap.id, snap.data() as Record<string, unknown>);
+}
+
+/**
+ * Subscribe to project document updates (same merge rules as {@link loadProject}).
+ * Caller should avoid applying updates while local edits are dirty.
+ */
+export function subscribeProject(
+  projectId: string,
+  onProject: (project: Project | null) => void,
+  onError?: (err: Error) => void,
+): Unsubscribe {
+  const ref = doc(db, PROJECTS_COL, projectId);
+  return onSnapshot(
+    ref,
+    (snap) => {
+      if (!snap.exists()) {
+        onProject(null);
+        return;
+      }
+      onProject(docToProject(snap.id, snap.data() as Record<string, unknown>));
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
 }
 
 // ─── Save project snapshot ──────────────────────────────────────────────────

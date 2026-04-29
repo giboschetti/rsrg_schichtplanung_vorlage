@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { loadProject, saveProjectSnapshot } from '@/services/firestoreService';
+import { saveProjectSnapshot, subscribeProject } from '@/services/firestoreService';
 import { usePlannerStore } from '@/stores/plannerStore';
 import { useStammdatenStore, DEFAULT_SHIFT_CONFIG } from '@/stores/stammdatenStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -35,12 +35,14 @@ export function useProject(projectId: string | undefined): UseProjectReturn {
     }
 
     let cancelled = false;
+    let unsub: (() => void) | undefined;
+
     setError(null);
     setLoading(true);
 
     const persistKey = `p-${projectId}`;
 
-    (async () => {
+    void (async () => {
       try {
         usePlannerStore.persist.setOptions({ name: `rsrg-planner-${persistKey}` });
         useStammdatenStore.persist.setOptions({ name: `rsrg-stammdaten-${persistKey}` });
@@ -53,43 +55,64 @@ export function useProject(projectId: string | undefined): UseProjectReturn {
       }
       if (cancelled) return;
 
-      try {
-        const project = await loadProject(projectId);
-        if (cancelled) return;
-        if (!project) {
-          setError('Projekt nicht gefunden');
-          return;
-        }
-        setProject(project.id, project.name);
-        const snap = project.snapshot;
-        if (snap) {
-          setKwList(snap.kwList ?? []);
-          setWorkItems(snap.workItems ?? {});
-          setFachdienstBauteile(snap.stammdaten?.fachdienstBauteile ?? {});
-          if (snap.stammdaten?.shiftConfig) setShiftConfig(snap.stammdaten.shiftConfig);
-          setProjectForm({
-            ...EMPTY_PROJECT_STAM_FORM,
-            ...pickStamForm(snap.stammdaten),
-          });
-          setMitarbeiter(snap.mitarbeiter ?? []);
-        } else {
-          setKwList([]);
-          setWorkItems({});
-          setFachdienstBauteile({});
-          setShiftConfig(DEFAULT_SHIFT_CONFIG);
-          setProjectForm({ ...EMPTY_PROJECT_STAM_FORM });
-          setMitarbeiter([]);
-        }
-        markClean();
-      } catch (err) {
-        if (!cancelled) setError(String(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      unsub = subscribeProject(
+        projectId,
+        (project) => {
+          if (cancelled) return;
+          if (!project) {
+            setError('Projekt nicht gefunden');
+            setLoading(false);
+            return;
+          }
+          const snap = project.snapshot;
+          if (usePlannerStore.getState().dirty) {
+            // Intervalle are written by the BAB sync cron and are not user-editable.
+            // Always refresh them from Firestore even when the planner has unsaved edits.
+            if (snap?.workItems) {
+              const current = usePlannerStore.getState().workItems;
+              const merged = { ...current };
+              for (const [key, cell] of Object.entries(snap.workItems)) {
+                merged[key] = { ...merged[key], intervalle: cell.intervalle ?? [] };
+              }
+              setWorkItems(merged);
+            }
+            setLoading(false);
+            return;
+          }
+          setError(null);
+          setProject(project.id, project.name);
+          if (snap) {
+            setKwList(snap.kwList ?? []);
+            setWorkItems(snap.workItems ?? {});
+            setFachdienstBauteile(snap.stammdaten?.fachdienstBauteile ?? {});
+            if (snap.stammdaten?.shiftConfig) setShiftConfig(snap.stammdaten.shiftConfig);
+            setProjectForm({
+              ...EMPTY_PROJECT_STAM_FORM,
+              ...pickStamForm(snap.stammdaten),
+            });
+            setMitarbeiter(snap.mitarbeiter ?? []);
+          } else {
+            setKwList([]);
+            setWorkItems({});
+            setFachdienstBauteile({});
+            setShiftConfig(DEFAULT_SHIFT_CONFIG);
+            setProjectForm({ ...EMPTY_PROJECT_STAM_FORM });
+            setMitarbeiter([]);
+          }
+          markClean();
+          setLoading(false);
+        },
+        (err) => {
+          if (cancelled) return;
+          setError(String(err));
+          setLoading(false);
+        },
+      );
     })();
 
     return () => {
       cancelled = true;
+      unsub?.();
     };
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
