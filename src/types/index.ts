@@ -96,6 +96,8 @@ export interface FremdleistungItem {
 
 export interface IntervalleItem {
   id: string;
+  /** BAB sync cron tags rows it owns so re-runs can replace them (`airtable_bab`). */
+  source?: string;
   babNr?: string;
   babDatei?: string;
   babTitel?: string;

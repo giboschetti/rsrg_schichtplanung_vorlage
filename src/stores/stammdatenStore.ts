@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { usePlannerStore } from '@/stores/plannerStore';
+import { useProjectDocumentDirtyStore } from '@/stores/projectDocumentDirtyStore';
 import type { FachdienstBauteile, MitarbeiterRow, ProjectStamFormFields, ShiftConfig } from '@/types';
 import { EMPTY_PROJECT_STAM_FORM } from '@/types';
 
-function touchDirty() {
-  usePlannerStore.getState().markDirty();
+function touchDocumentDirty(): void {
+  useProjectDocumentDirtyStore.getState().markDirty();
 }
 
 interface StammdatenState {
@@ -46,7 +46,7 @@ export const useStammdatenStore = create<StammdatenState>()(
 
       setFachdienstBauteile: (data) => {
         set({ fachdienstBauteile: data });
-        touchDirty();
+        touchDocumentDirty();
       },
 
       addBauteil: (fachdienst, bauteil) => {
@@ -59,7 +59,7 @@ export const useStammdatenStore = create<StammdatenState>()(
             [fachdienst]: [...existing, bauteil],
           },
         });
-        touchDirty();
+        touchDocumentDirty();
       },
 
       removeBauteil: (fachdienst, idx) => {
@@ -70,7 +70,7 @@ export const useStammdatenStore = create<StammdatenState>()(
             fachdienstBauteile: { ...s.fachdienstBauteile, [fachdienst]: existing },
           };
         });
-        touchDirty();
+        touchDocumentDirty();
       },
 
       getBauteileForFachdienst: (fachdienst) =>
@@ -78,38 +78,38 @@ export const useStammdatenStore = create<StammdatenState>()(
 
       setShiftConfig: (cfg) => {
         set({ shiftConfig: cfg });
-        touchDirty();
+        touchDocumentDirty();
       },
 
       setProjectForm: (p) => {
         set((s) => ({ projectForm: { ...s.projectForm, ...p } }));
-        touchDirty();
+        touchDocumentDirty();
       },
 
       setMitarbeiter: (rows) => {
         set({ mitarbeiter: rows });
-        touchDirty();
+        touchDocumentDirty();
       },
 
       addMitarbeiterRow: () => {
         set((s) => ({
           mitarbeiter: [...s.mitarbeiter, { id: newId() }],
         }));
-        touchDirty();
+        touchDocumentDirty();
       },
 
       updateMitarbeiterRow: (id, patch) => {
         set((s) => ({
           mitarbeiter: s.mitarbeiter.map((r) => (r.id === id ? { ...r, ...patch } : r)),
         }));
-        touchDirty();
+        touchDocumentDirty();
       },
 
       removeMitarbeiterRow: (id) => {
         set((s) => ({
           mitarbeiter: s.mitarbeiter.filter((r) => r.id !== id),
         }));
-        touchDirty();
+        touchDocumentDirty();
       },
     }),
     {

@@ -1,37 +1,46 @@
 # RSRG Schichtplanung — Vorlage
 
-Web-basierte **Schichtplanung** mit Firebase Authentication + Firestore für mehrere Projekte.
+Web-basierte **Schichtplanung** mit Firebase Authentication + Firestore für mehrere Projekte.  
+**Aktueller Stack:** React 19, Vite 6, TypeScript, TanStack Table, Zustand, Tailwind CSS v4.
 
 ## Struktur
 
 | Pfad | Inhalt |
 |------|--------|
-| `index.html` | Dashboard (Login, Projektliste, Projekt erstellen) |
-| `project.html` | Planungs-Workspace (bestehende UI/Logik inkl. Bulk-Add) |
-| `css/styles.css` | Layout & Komponenten |
-| `js/app.js` | Bestehende Planungslogik (UI, Timeline, Bulk-Add, Export, lokale Snapshot-Logik) |
-| `js/firebase-init.js` | Firebase App/Auth/Firestore Initialisierung |
-| `js/auth.js` | Google Auth + Auth State |
-| `js/firestore-service.js` | Firestore CRUD für Projekte |
-| `js/dashboard.js` | Dashboard-Interaktionen |
-| `js/project.js` | Projektladen/-speichern (Firestore ↔ bestehende Planner-Daten) |
+| `src/` | React-App (Dashboard, Planner, Firestore, Exporte) |
+| `index.html` | Vite-Einstieg → `/src/main.tsx` |
+| `vite.config.ts` / `tsconfig.*` | Build & Aliase (`@` → `src`) |
+| `firebase.json` | Hosting: `dist/` (nach `npm run build`) |
 | `firestore.rules` | Empfohlene Start-Regeln (Single-Owner-Projekte) |
-| `_build_from_monolith.py` | Optional: erneute Aufteilung aus `../schichtplanung.html` |
+| `_build_from_monolith.py` | **Veraltet** — beendet mit Fehlcode (historisches Monolith-Split-Skript) |
 
-## Nutzung
+## Lokale Entwicklung
 
-1. `index.html` über lokalen HTTP-Server oder Hosting öffnen.
-2. Mit Google anmelden.
-3. Projekt erstellen oder bestehendes Projekt öffnen.
-4. Planung in `project.html` bearbeiten (Autosave + manuelles Cloud-Speichern).
-5. Optional weiterhin „Datei speichern“ / XLSX / PDF aus dem Planner verwenden.
+```bash
+npm install
+npm run dev
+```
 
-> **Hinweis:** Standalone-HTML-Export bleibt kompatibel und arbeitet weiterhin auf Basis der bestehenden Planungslogik.
+Öffnet die App mit Hot-Reload (Standard: http://localhost:5173).
 
-## GitHub Pages
+## Produktion / Firebase Hosting
 
-Repository **Settings → Pages → Build and deployment**: Branch **main**, Ordner **/** (root). Die App liegt dann unter `https://<user>.github.io/rsrg_schichtplanung_vorlage/`.
+```bash
+npm run build
+firebase deploy --only hosting
+```
 
-## Abhängigkeiten (CDN)
+`firebase.json` liefert `dist/` aus und leitet SPA-Routes auf `index.html` um (`**` → `/index.html`).
 
-Fonts, Tabulator, SheetJS, jsPDF werden wie in der Vorlage von öffentlichen CDNs geladen; Offline-Nutzung der **gespeicherten Einzeldatei** funktioniert nur mit Netzwerk für diese Bibliotheken (gleiches Verhalten wie die ursprüngliche Monolith-HTML).
+## Daten & Auth
+
+Projektdaten liegen in Firestore unter `projects/{projectId}`; Login über Google (Firebase Auth).  
+Details zur Domäne: `CLAUDE.md` und `docs/agents/domain.md`.
+
+## GitHub Pages (optional)
+
+Repository **Settings → Pages**: Branch mit dem gebauten `dist`-Inhalt deployen oder CI bauen lassen — die **Quelle der Wahrheit** ist die Vite-Ausgabe, nicht mehr statische Legacy-HTML-Dateien.
+
+## Archiv-Hinweise
+
+- Ein eingefrorenes Standalone-Beispiel kann unter `assets/` liegen (ältere Einzeldatei-Exports mit eingeblendeter alter Logik).

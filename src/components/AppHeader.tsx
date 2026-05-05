@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '@/context/AuthContext';
 import { usePlannerStore } from '@/stores/plannerStore';
+import { useProjectDocumentDirtyStore } from '@/stores/projectDocumentDirtyStore';
 import { exportXlsx } from '@/lib/exportXlsx';
 import { exportPdf } from '@/lib/exportPdf';
+import { AirtableBabSyncButton } from '@/components/AirtableBabSyncButton';
 
 interface AppHeaderProps {
   onSave: () => void;
@@ -13,7 +15,7 @@ export function AppHeader({ onSave, saving }: AppHeaderProps) {
   const navigate = useNavigate();
   const { user, signOut } = useAuthContext();
   const projectName = usePlannerStore((s) => s.projectName);
-  const dirty = usePlannerStore((s) => s.dirty);
+  const dirty = useProjectDocumentDirtyStore((s) => s.dirty);
   const kwList = usePlannerStore((s) => s.kwList);
   const workItems = usePlannerStore((s) => s.workItems);
 
@@ -68,6 +70,7 @@ export function AppHeader({ onSave, saving }: AppHeaderProps) {
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <AirtableBabSyncButton />
         <button
           onClick={() => exportXlsx(projectName, kwList, workItems)}
           style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #e4e4e7', background: '#fff', fontSize: 12, cursor: 'pointer', color: '#09090b' }}

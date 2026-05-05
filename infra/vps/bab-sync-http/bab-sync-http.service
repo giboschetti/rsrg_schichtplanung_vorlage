@@ -1,0 +1,16 @@
+[Unit]
+Description=BAB Airtable sync HTTP trigger (Schichtplanung frontend)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/bab-sync-http
+EnvironmentFile=/etc/bab-sync-http.env
+ExecStart=/usr/bin/python3 /opt/bab-sync-http/server.py
+Restart=on-failure
+RestartSec=8
+
+[Install]
+WantedBy=multi-user.target

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { saveProjectSnapshot, subscribeProject } from '@/services/firestoreService';
+import { subscribeToProject, saveProjectSnapshot } from '@/services/firestoreService';
 import { usePlannerStore } from '@/stores/plannerStore';
+import { useProjectDocumentDirtyStore } from '@/stores/projectDocumentDirtyStore';
 import { useStammdatenStore, DEFAULT_SHIFT_CONFIG } from '@/stores/stammdatenStore';
 import { useUiStore } from '@/stores/uiStore';
-import type { ProjectStamFormFields, ProjectSnapshot } from '@/types';
+import type { ProjectStamFormFields, ProjectSnapshot, WorkItems } from '@/types';
 import { EMPTY_PROJECT_STAM_FORM } from '@/types';
 
 interface UseProjectReturn {
@@ -21,7 +22,7 @@ export function useProject(projectId: string | undefined): UseProjectReturn {
   const setProject = usePlannerStore((s) => s.setProject);
   const setKwList = usePlannerStore((s) => s.setKwList);
   const setWorkItems = usePlannerStore((s) => s.setWorkItems);
-  const markClean = usePlannerStore((s) => s.markClean);
+  const markClean = useProjectDocumentDirtyStore((s) => s.markClean);
 
   const setFachdienstBauteile = useStammdatenStore((s) => s.setFachdienstBauteile);
   const setShiftConfig = useStammdatenStore((s) => s.setShiftConfig);
@@ -34,15 +35,14 @@ export function useProject(projectId: string | undefined): UseProjectReturn {
       return;
     }
 
+    let unsubFirestore: (() => void) | null = null;
     let cancelled = false;
-    let unsub: (() => void) | undefined;
-
     setError(null);
     setLoading(true);
 
     const persistKey = `p-${projectId}`;
 
-    void (async () => {
+    (async () => {
       try {
         usePlannerStore.persist.setOptions({ name: `rsrg-planner-${persistKey}` });
         useStammdatenStore.persist.setOptions({ name: `rsrg-stammdaten-${persistKey}` });
@@ -55,70 +55,71 @@ export function useProject(projectId: string | undefined): UseProjectReturn {
       }
       if (cancelled) return;
 
-      unsub = subscribeProject(
+      let isFirstSnapshot = true;
+
+      unsubFirestore = subscribeToProject(
         projectId,
         (project) => {
           if (cancelled) return;
-          if (!project) {
-            setError('Projekt nicht gefunden');
-            setLoading(false);
-            return;
-          }
           const snap = project.snapshot;
-          if (usePlannerStore.getState().dirty) {
-            // Intervalle are written by the BAB sync cron and are not user-editable.
-            // Always refresh them from Firestore even when the planner has unsaved edits.
-            if (snap?.workItems) {
-              const current = usePlannerStore.getState().workItems;
-              const merged = { ...current };
-              for (const [key, cell] of Object.entries(snap.workItems)) {
-                merged[key] = { ...merged[key], intervalle: cell.intervalle ?? [] };
-              }
-              setWorkItems(merged);
+
+          if (isFirstSnapshot) {
+            isFirstSnapshot = false;
+            setProject(project.id, project.name);
+            if (snap) {
+              setKwList(snap.kwList ?? []);
+              setWorkItems(snap.workItems ?? {});
+              setFachdienstBauteile(snap.stammdaten?.fachdienstBauteile ?? {});
+              if (snap.stammdaten?.shiftConfig) setShiftConfig(snap.stammdaten.shiftConfig);
+              setProjectForm({
+                ...EMPTY_PROJECT_STAM_FORM,
+                ...pickStamForm(snap.stammdaten),
+              });
+              setMitarbeiter(snap.mitarbeiter ?? []);
+            } else {
+              setKwList([]);
+              setWorkItems({});
+              setFachdienstBauteile({});
+              setShiftConfig(DEFAULT_SHIFT_CONFIG);
+              setProjectForm({ ...EMPTY_PROJECT_STAM_FORM });
+              setMitarbeiter([]);
             }
+            markClean();
             setLoading(false);
-            return;
+          } else if (snap) {
+            // Live update (e.g. from CRON automation writing to Firestore)
+            const dirty = useProjectDocumentDirtyStore.getState().dirty;
+            if (!dirty) {
+              // No unsaved user edits — safe to fully refresh
+              setKwList(snap.kwList ?? []);
+              setWorkItems(snap.workItems ?? {});
+              setMitarbeiter(snap.mitarbeiter ?? []);
+            } else {
+              // User has unsaved edits — only refresh intervalle sections
+              // so CRON-written data shows up without overwriting the user's work
+              const currentItems = usePlannerStore.getState().workItems;
+              setWorkItems(mergeIntervalleOnly(currentItems, snap.workItems ?? {}));
+            }
           }
-          setError(null);
-          setProject(project.id, project.name);
-          if (snap) {
-            setKwList(snap.kwList ?? []);
-            setWorkItems(snap.workItems ?? {});
-            setFachdienstBauteile(snap.stammdaten?.fachdienstBauteile ?? {});
-            if (snap.stammdaten?.shiftConfig) setShiftConfig(snap.stammdaten.shiftConfig);
-            setProjectForm({
-              ...EMPTY_PROJECT_STAM_FORM,
-              ...pickStamForm(snap.stammdaten),
-            });
-            setMitarbeiter(snap.mitarbeiter ?? []);
-          } else {
-            setKwList([]);
-            setWorkItems({});
-            setFachdienstBauteile({});
-            setShiftConfig(DEFAULT_SHIFT_CONFIG);
-            setProjectForm({ ...EMPTY_PROJECT_STAM_FORM });
-            setMitarbeiter([]);
-          }
-          markClean();
-          setLoading(false);
         },
         (err) => {
-          if (cancelled) return;
-          setError(String(err));
-          setLoading(false);
+          if (!cancelled) {
+            setError(String(err));
+            if (isFirstSnapshot) setLoading(false);
+          }
         },
       );
     })();
 
     return () => {
       cancelled = true;
-      unsub?.();
+      unsubFirestore?.();
     };
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = useCallback(async () => {
     if (!projectId) return;
-    if (!usePlannerStore.getState().dirty) return;
+    if (!useProjectDocumentDirtyStore.getState().dirty) return;
     setSaving(true);
     try {
       const pl = usePlannerStore.getState();
@@ -141,9 +142,41 @@ export function useProject(projectId: string | undefined): UseProjectReturn {
     } finally {
       setSaving(false);
     }
-  }, [projectId, markClean]);
+  }, [projectId, markClean]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { loading, error, save, saving };
+}
+
+/**
+ * When the user has unsaved edits, apply only the `intervalle` sections from
+ * the incoming Firestore snapshot so CRON-written data is always visible
+ * without clobbering in-progress user work on other sections.
+ */
+function mergeIntervalleOnly(current: WorkItems, incoming: WorkItems): WorkItems {
+  const result: WorkItems = { ...current };
+  const keys = new Set([...Object.keys(current), ...Object.keys(incoming)]);
+  for (const key of keys) {
+    const incomingCell = incoming[key];
+    const hasIncomingIntervalle =
+      !!incomingCell
+      && Object.prototype.hasOwnProperty.call(incomingCell, 'intervalle');
+
+    if (hasIncomingIntervalle) {
+      result[key] = {
+        ...(current[key] ?? {}),
+        intervalle: Array.isArray(incomingCell?.intervalle) ? incomingCell.intervalle : [],
+      };
+      continue;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(current[key] ?? {}, 'intervalle')) {
+      const rest = { ...(current[key] ?? {}) };
+      delete rest.intervalle;
+      if (Object.keys(rest).length > 0) result[key] = rest;
+      else delete result[key];
+    }
+  }
+  return result;
 }
 
 function pickStamForm(

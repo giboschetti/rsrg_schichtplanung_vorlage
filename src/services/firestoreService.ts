@@ -3,15 +3,14 @@ import {
   doc,
   getDoc,
   getDocs,
-  setDoc,
+  onSnapshot,
+  updateDoc,
   addDoc,
   deleteDoc,
   query,
   where,
   serverTimestamp,
   Timestamp,
-  onSnapshot,
-  type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { extractProjectSnapshot } from '@/lib/mergeFirestoreSnapshot';
@@ -79,7 +78,11 @@ export async function createProject(name: string, uid: string): Promise<Project>
 
 // ─── Load a project ─────────────────────────────────────────────────────────
 
-function docToProject(docId: string, d: Record<string, unknown>): Project {
+export async function loadProject(projectId: string): Promise<Project | null> {
+  const ref = doc(db, PROJECTS_COL, projectId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  const d = snap.data() as Record<string, unknown>;
   const cr = d.createdAt;
   const createdAt =
     typeof cr === 'string'
@@ -88,7 +91,7 @@ function docToProject(docId: string, d: Record<string, unknown>): Project {
         ? cr.toDate().toISOString()
         : new Date().toISOString();
   return {
-    id: docId,
+    id: snap.id,
     name: String(d.name ?? 'Projekt'),
     ownerId: String(d.ownerId ?? ''),
     createdAt,
@@ -96,39 +99,11 @@ function docToProject(docId: string, d: Record<string, unknown>): Project {
   } as Project;
 }
 
-export async function loadProject(projectId: string): Promise<Project | null> {
-  const ref = doc(db, PROJECTS_COL, projectId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return docToProject(snap.id, snap.data() as Record<string, unknown>);
-}
-
-/**
- * Subscribe to project document updates (same merge rules as {@link loadProject}).
- * Caller should avoid applying updates while local edits are dirty.
- */
-export function subscribeProject(
-  projectId: string,
-  onProject: (project: Project | null) => void,
-  onError?: (err: Error) => void,
-): Unsubscribe {
-  const ref = doc(db, PROJECTS_COL, projectId);
-  return onSnapshot(
-    ref,
-    (snap) => {
-      if (!snap.exists()) {
-        onProject(null);
-        return;
-      }
-      onProject(docToProject(snap.id, snap.data() as Record<string, unknown>));
-    },
-    (err) => {
-      onError?.(err instanceof Error ? err : new Error(String(err)));
-    },
-  );
-}
-
 // ─── Save project snapshot ──────────────────────────────────────────────────
+
+// Sections the React app owns. `intervalle` is intentionally excluded —
+// it is written exclusively by the Python CRON and must never be touched here.
+const REACT_OWNED_SECTIONS = ['tasks', 'personal', 'inventar', 'material', 'fremdleistung'] as const;
 
 export async function saveProjectSnapshot(
   projectId: string,
@@ -136,7 +111,61 @@ export async function saveProjectSnapshot(
 ): Promise<void> {
   const ref = doc(db, PROJECTS_COL, projectId);
   const snapshotClean = stripUndefinedForFirestore(snapshot) as ProjectSnapshot;
-  await setDoc(ref, { snapshot: snapshotClean, updatedAt: serverTimestamp() }, { merge: true });
+
+  // Use Firestore field-level dot-notation paths so React never overwrites
+  // intervalle arrays; those BAB rows belong to the external feed.
+  const updates: Record<string, unknown> = {
+    'snapshot.kwList':      snapshotClean.kwList,
+    'snapshot.stammdaten':  snapshotClean.stammdaten,
+    'snapshot.mitarbeiter': snapshotClean.mitarbeiter ?? [],
+    updatedAt: serverTimestamp(),
+  };
+
+  for (const [key, cell] of Object.entries(snapshotClean.workItems)) {
+    for (const section of REACT_OWNED_SECTIONS) {
+      const val = (cell as Record<string, unknown>)[section];
+      if (val !== undefined) {
+        updates[`snapshot.workItems.${key}.${section}`] = val;
+      }
+    }
+  }
+
+  await updateDoc(ref, updates);
+}
+
+// ─── Subscribe to real-time project updates ─────────────────────────────────
+
+export function subscribeToProject(
+  projectId: string,
+  onData: (project: Project) => void,
+  onError: (err: Error) => void,
+): () => void {
+  const ref = doc(db, PROJECTS_COL, projectId);
+  return onSnapshot(
+    ref,
+    (snap) => {
+      if (!snap.exists()) {
+        onError(new Error('Projekt nicht gefunden'));
+        return;
+      }
+      const d = snap.data() as Record<string, unknown>;
+      const cr = d.createdAt;
+      const createdAt =
+        typeof cr === 'string'
+          ? cr
+          : cr instanceof Timestamp
+            ? cr.toDate().toISOString()
+            : new Date().toISOString();
+      onData({
+        id: snap.id,
+        name: String(d.name ?? 'Projekt'),
+        ownerId: String(d.ownerId ?? ''),
+        createdAt,
+        snapshot: extractProjectSnapshot(d),
+      } as Project);
+    },
+    onError,
+  );
 }
 
 // ─── Delete a project ───────────────────────────────────────────────────────

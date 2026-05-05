@@ -51,111 +51,17 @@ function intRowId(): string {
   return `int_${Math.random().toString(36).slice(2)}`;
 }
 
-/** Pull a usable string from Firestore / Airtable / Excel shapes (avoid `[object Object]`). */
-function valueAsNonEmptyString(v: unknown): string | undefined {
-  if (v == null) return undefined;
-  if (typeof v === 'string') {
-    const t = v.trim();
-    return t || undefined;
-  }
-  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  if (Array.isArray(v)) {
-    for (const el of v) {
-      if (el && typeof el === 'object' && typeof (el as { url?: string }).url === 'string') {
-        const u = (el as { url: string }).url.trim();
-        if (u) return u;
-      }
-      if (typeof el === 'string' && el.trim()) return el.trim();
-    }
-    return undefined;
-  }
-  if (typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    for (const sub of [
-      'downloadURL',
-      'downloadUrl',
-      'signedUrl',
-      'publicUrl',
-      'mediaLink',
-      'url',
-      'href',
-      'link',
-      'uri',
-      'value',
-      'text',
-      'display',
-      'filename',
-    ]) {
-      const inner = o[sub];
-      if (typeof inner === 'string' && inner.trim()) return inner.trim();
-    }
-    return undefined;
-  }
-  const s = String(v).trim();
-  if (!s || s === '[object Object]') return undefined;
-  return s;
-}
-
-/** True when the URL clearly points to Firebase Storage / GCS download endpoints (vs legacy Airtable file URLs). */
-function looksLikeFirebaseStorageUrl(u: string): boolean {
-  return /firebasestorage\.googleapis\.com|storage\.googleapis\.com|\.appspot\.com\/o\//i.test(u);
-}
-
-function looksLikeAirtableFileUrl(u: string): boolean {
-  return /airtable\.com|airtableusercontent\.com|dl\.airtable\.com|static\.airtable\.com/i.test(u);
-}
-
-function isHttpUrlString(s: string): boolean {
-  return /^https?:\/\//i.test(s);
-}
-
-/** Collect every http(s) string from a Firestore value (recursive for attachment arrays). */
-function collectHttpUrlsFromValue(v: unknown, out: string[], seen: Set<string>): void {
-  if (v == null) return;
-  if (Array.isArray(v)) {
-    for (const el of v) collectHttpUrlsFromValue(el, out, seen);
-    return;
-  }
-  const s = valueAsNonEmptyString(v);
-  if (s && isHttpUrlString(s) && !seen.has(s)) {
-    seen.add(s);
-    out.push(s);
-  }
-}
-
-/** Collect every http(s) string on the row (attachments, formula objects, etc.). */
-function collectHttpUrlsFromRecord(raw: Record<string, unknown>): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const [k, v] of Object.entries(raw)) {
-    if (k === 'id') continue;
-    collectHttpUrlsFromValue(v, out, seen);
-  }
-  return out;
-}
-
-/** Prefer Firebase file links when the row still contains old Airtable URLs from imports. */
-function pickBestDocumentUrl(candidates: string[]): string | undefined {
-  if (!candidates.length) return undefined;
-  const fb = candidates.find(looksLikeFirebaseStorageUrl);
-  if (fb) return fb;
-  const nonAt = candidates.find((u) => !looksLikeAirtableFileUrl(u));
-  if (nonAt) return nonAt;
-  return candidates[0];
-}
-
 /** Some Firestore / import rows use `BAB Titel`, `bab_titel`, etc. — we read them into canonical camelCase. */
 function firstNonEmptyField(obj: Record<string, unknown>, explicitKeys: string[], fuzzy: string): string | undefined {
   for (const k of explicitKeys) {
     if (Object.prototype.hasOwnProperty.call(obj, k)) {
-      const s = valueAsNonEmptyString(obj[k]);
-      if (s) return s;
+      const v = obj[k];
+      if (v != null && String(v).trim() !== '') return String(v).trim();
     }
   }
   for (const [k, v] of Object.entries(obj)) {
     if (k === 'id' || v == null) continue;
-    const s = valueAsNonEmptyString(v);
+    const s = String(v).trim();
     if (!s) continue;
     const kn = k.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (kn === fuzzy) return s;
@@ -163,69 +69,25 @@ function firstNonEmptyField(obj: Record<string, unknown>, explicitKeys: string[]
   return undefined;
 }
 
-/** Resolve BAB-Datei when several URL fields exist (Airtable legacy + Firebase on `babDatei`, etc.). */
-function resolveBabDateiUrl(raw: Record<string, unknown>): string | undefined {
-  const fromNamedKeys = firstNonEmptyField(
-    raw,
-    [
-      'babDatei',
-      'bab_datei',
-      'BABDatei',
-      'BAB-Datei',
-      'BAB Datei',
-      'BAB_Datei',
-      'babLink',
-      'bab_link',
-      'BABLink',
-    ],
-    'babdatei',
-  );
-  const fromRow = collectHttpUrlsFromRecord(raw);
-  const merged = [...(fromNamedKeys ? [fromNamedKeys] : []), ...fromRow];
-  const dedup: string[] = [];
-  const seen = new Set<string>();
-  for (const u of merged) {
-    if (!seen.has(u)) {
-      seen.add(u);
-      dedup.push(u);
-    }
-  }
-  return pickBestDocumentUrl(dedup) ?? fromNamedKeys;
-}
-
-/** If the only “title” value is an http(s) URL, also expose it as BAB-Datei so the PDF chip opens. */
-function linkFieldsFromHttpTitel(babDatei: string | undefined, babTitel: string | undefined): { babDatei?: string; babTitel?: string } {
-  const d = babDatei?.trim();
-  const t = babTitel?.trim();
-  const httpish = (s: string | undefined) => s && /^https?:\/\//i.test(s);
-  if (!httpish(d) && httpish(t)) return { babDatei: t, babTitel: t };
-  return { babDatei: d, babTitel: t };
-}
-
 /** Normalize a single Intervall row from any sensible key shape (Excel / hand-edited JSON). */
 export function normalizeIntervalleItem(raw: Record<string, unknown>): IntervalleItem {
   const id = typeof raw.id === 'string' && raw.id ? raw.id : intRowId();
-  let babDatei = resolveBabDateiUrl(raw);
-  let babTitel = firstNonEmptyField(raw, [
-    'babTitel',
-    'bab_titel',
-    'BABTitel',
-    'BAB Titel',
-    'BAB_Titel',
-    'BabTitel',
-    'Babtitel',
-    'titel',
-    'title',
-    'Titel',
-  ], 'babtitel');
-
-  const linked = linkFieldsFromHttpTitel(babDatei, babTitel);
-
   return {
     id,
     babNr: firstNonEmptyField(raw, ['babNr', 'bab_nr', 'BABNr', 'BAB_Nr', 'BAB-Nr', 'BABN'], 'babnr'),
-    babDatei: linked.babDatei,
-    babTitel: linked.babTitel,
+    babDatei: firstNonEmptyField(raw, ['babDatei', 'bab_datei', 'BABDatei', 'BAB-Datei'], 'babdatei'),
+    babTitel: firstNonEmptyField(raw, [
+      'babTitel',
+      'bab_titel',
+      'BABTitel',
+      'BAB Titel',
+      'BAB_Titel',
+      'BabTitel',
+      'Babtitel',
+      'titel', // some feeds only have generic “titel”
+      'title',
+      'Titel',
+    ], 'babtitel'),
     status: firstNonEmptyField(
       raw,
       ['status', 'Status', 'BABStatus', 'BAB_Status'],
@@ -244,9 +106,10 @@ export function normalizeIntervalleItem(raw: Record<string, unknown>): Intervall
   };
 }
 
-/** Do not backfill from legacy plannerData — stale URLs/titles were masking current `snapshot` / Firestore strings. */
 const INT_MERGE_KEYS: (keyof IntervalleItem)[] = [
   'babNr',
+  'babTitel',
+  'babDatei',
   'status',
   'gleissperrungen',
   'fahrleitungsausschaltungen',
@@ -332,11 +195,19 @@ function coerceSectionArray<T>(v: unknown): T[] {
   return [];
 }
 
+function hasOwnSection(val: unknown, section: keyof ShiftData): boolean {
+  return !!val
+    && typeof val === 'object'
+    && !Array.isArray(val)
+    && Object.prototype.hasOwnProperty.call(val, section);
+}
+
 function normalizeOneCell(val: unknown): Partial<ShiftData> {
   if (!val || typeof val !== 'object') return {};
   const c = val as Record<string, unknown>;
   const out: Partial<ShiftData> = {};
   for (const s of SHIFT_SECTIONS) {
+    if (!hasOwnSection(c, s)) continue;
     if (s === 'intervalle') {
       const rawList = coerceSectionArray<Record<string, unknown>>(c[s] as unknown);
       out[s] = rawList.map((r) => normalizeIntervalleItem(r)) as ShiftData[typeof s];
@@ -380,53 +251,33 @@ function mergeTaskRowsRaw(
   return out;
 }
 
-/**
- * Merge one shift cell: React `snapshot` wins when it declares a section.
- * `plannerData` is only used to fill keys missing from `snapshot` or rows missing from v2
- * (tasks merge by id — see mergeTaskRowsRaw).
- */
+/** Merge one cell while keeping the CRON-owned intervalle source authoritative when requested. */
 function mergeWorkItemCell(
   legacy: unknown,
   fromV2: unknown,
+  options: { preferLegacyIntervalle?: boolean } = {},
 ): Partial<ShiftData> {
   const legCell = legacy && typeof legacy === 'object' ? (legacy as Record<string, unknown>) : {};
   const v2Cell = fromV2 && typeof fromV2 === 'object' ? (fromV2 as Record<string, unknown>) : {};
 
   const a = normalizeOneCell(legacy);
   const b = normalizeOneCell(fromV2);
-  /** If the React snapshot defines `intervalle` on this cell — even `[]` — trust it (do not resurrect legacy Intervalle). */
-  const v2DeclaresIntervalle = Object.prototype.hasOwnProperty.call(v2Cell, 'intervalle');
   const m: Partial<ShiftData> = { ...a, ...b };
   for (const s of SHIFT_SECTIONS) {
     const av = a[s] as unknown[] | undefined;
     const bv = b[s] as unknown[] | undefined;
     const aLen = Array.isArray(av) ? av.length : 0;
     const bLen = Array.isArray(bv) ? bv.length : 0;
-    if (s === 'intervalle' && v2DeclaresIntervalle) {
-      const v2Intv = (Array.isArray(bv) ? bv : []) as IntervalleItem[];
-      // plannerData (legacy) is written by the bab_sync cron with fresh Firebase Storage URLs.
-      // snapshot (v2) may have stale Airtable URLs from an older React save.
-      // Upgrade babDatei in v2 rows to the Firebase URL from plannerData when available.
-      if (Array.isArray(av) && av.length > 0) {
-        const legById = new Map((av as IntervalleItem[]).map((r) => [r.id, r]));
-        m[s] = v2Intv.map((row) => {
-          const legRow = legById.get(row.id);
-          if (!legRow) return row;
-          const cur = row.babDatei;
-          const leg = legRow.babDatei;
-          if (
-            leg && looksLikeFirebaseStorageUrl(leg) &&
-            (!cur || looksLikeAirtableFileUrl(cur) || !isHttpUrlString(cur))
-          ) {
-            return { ...row, babDatei: leg };
-          }
-          return row;
-        }) as ShiftData[typeof s];
-      } else {
-        m[s] = v2Intv as ShiftData[typeof s];
-      }
-    } else if (s === 'intervalle' && aLen > 0 && bLen > 0) {
-      m[s] = mergeIntervalleRows(av as IntervalleItem[], bv as IntervalleItem[]) as ShiftData[typeof s];
+    const legacyHasSection = hasOwnSection(legacy, s);
+    const v2HasSection = hasOwnSection(fromV2, s);
+    if (s === 'intervalle') {
+      if (options.preferLegacyIntervalle) {
+        if (legacyHasSection) m[s] = (av ?? []) as ShiftData[typeof s];
+        else if (v2HasSection) m[s] = (bv ?? []) as ShiftData[typeof s];
+      } else if (legacyHasSection && v2HasSection && aLen > 0 && bLen > 0) {
+        m[s] = mergeIntervalleRows(av as IntervalleItem[], bv as IntervalleItem[]) as ShiftData[typeof s];
+      } else if (v2HasSection) m[s] = (bv ?? []) as ShiftData[typeof s];
+      else if (legacyHasSection) m[s] = (av ?? []) as ShiftData[typeof s];
     } else if (s === 'tasks' && (aLen > 0 || bLen > 0)) {
       const legTasks = coerceSectionArray<Record<string, unknown>>(legCell.tasks);
       const v2Tasks = coerceSectionArray<Record<string, unknown>>(v2Cell.tasks);
@@ -438,13 +289,11 @@ function mergeWorkItemCell(
 }
 
 export function mergeWorkItemMaps(legacy: WorkItems, v2: WorkItems): WorkItems {
-  const out: WorkItems = {};
+  const out: WorkItems = { ...legacy };
   for (const [k, v2cell] of Object.entries(v2)) {
-    out[k] = mergeWorkItemCell(legacy[k], v2cell) as WorkItems[string];
-  }
-  for (const [k, legCell] of Object.entries(legacy)) {
-    if (out[k]) continue;
-    out[k] = normalizeOneCell(legCell) as WorkItems[string];
+    out[k] = mergeWorkItemCell(legacy[k], v2cell, {
+      preferLegacyIntervalle: true,
+    }) as WorkItems[string];
   }
   return out;
 }
@@ -528,7 +377,8 @@ export function extractProjectSnapshot(data: Record<string, unknown>): ProjectSn
       : isNonEmptyKalenderWocheList(pd?.kwList)
         ? (pd!.kwList as KalenderWoche[])
         : legacyKw;
-    // Same document often still has `plannerData` (vanilla app / manual Firestore edits). Merge so that data is not lost.
+    // Same document often still has `plannerData` (vanilla app / CRON feed). Merge so that
+    // user-owned sections are not lost, but keep plannerData intervalle authoritative.
     const legacyWorkItems =
       pd && typeof pd === 'object'
         ? normalizeWorkItemKeys((pd as Record<string, unknown>).workItems ?? {})

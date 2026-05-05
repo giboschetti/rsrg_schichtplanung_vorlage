@@ -11,7 +11,7 @@ export interface SelectedCell {
   sdpCollapseAll?: boolean;
 }
 
-interface TlFilterState {
+export interface TlFilterState {
   intervalle: boolean;
   tasks: boolean;
   personal: boolean;

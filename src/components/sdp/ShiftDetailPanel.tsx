@@ -116,6 +116,9 @@ function SdpSection({
   const getSection = usePlannerStore((s) => s.getSection);
   const setSection = usePlannerStore((s) => s.setSection);
 
+  // Intervalle is CRON-owned — React displays it read-only, no add/edit/delete.
+  const readOnly = section === 'intervalle';
+
   const rows = getSection<Record<string, unknown>>(kwId, dayIdx, shift, section);
   const count = rows.length;
 
@@ -155,6 +158,11 @@ function SdpSection({
         }}>
           {count}
         </span>
+        {readOnly && (
+          <span style={{ fontSize: 10, color: '#71717a', fontWeight: 400, marginLeft: 4 }}>
+            (schreibgeschützt)
+          </span>
+        )}
       </summary>
 
       <div style={{ paddingBottom: 8 }}>
@@ -163,17 +171,20 @@ function SdpSection({
           rows={rows}
           onUpdate={updateRow}
           onDelete={deleteRow}
+          readOnly={readOnly}
         />
-        <button
-          onClick={addRow}
-          style={{
-            marginTop: 8, padding: '4px 12px', borderRadius: 5,
-            border: '1px dashed #e4e4e7', background: '#fff',
-            fontSize: 12, cursor: 'pointer', color: '#71717a',
-          }}
-        >
-          + Zeile
-        </button>
+        {!readOnly && (
+          <button
+            onClick={addRow}
+            style={{
+              marginTop: 8, padding: '4px 12px', borderRadius: 5,
+              border: '1px dashed #e4e4e7', background: '#fff',
+              fontSize: 12, cursor: 'pointer', color: '#71717a',
+            }}
+          >
+            + Zeile
+          </button>
+        )}
       </div>
     </details>
   );
@@ -186,11 +197,13 @@ function SdpTable({
   rows,
   onUpdate,
   onDelete,
+  readOnly = false,
 }: {
   section: SdpSection;
   rows: Record<string, unknown>[];
   onUpdate: (idx: number, key: string, value: unknown) => void;
   onDelete: (idx: number) => void;
+  readOnly?: boolean;
 }) {
   const fachdienstBauteile = useStammdatenStore((s) => s.fachdienstBauteile);
 
@@ -205,7 +218,7 @@ function SdpTable({
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ background: '#f9f9fa' }}>
-            <th style={{ width: 32, borderBottom: '1px solid #e4e4e7' }} />
+            {!readOnly && <th style={{ width: 32, borderBottom: '1px solid #e4e4e7' }} />}
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -224,18 +237,20 @@ function SdpTable({
         <tbody>
           {rows.map((row, idx) => (
             <tr key={String(row.id ?? idx)} style={{ borderBottom: '1px solid #f0f0f0' }}>
-              <td style={{ textAlign: 'center', padding: '4px 4px', verticalAlign: 'middle' }}>
-                <button
-                  onClick={() => onDelete(idx)}
-                  style={{
-                    border: 'none', background: 'none', cursor: 'pointer',
-                    color: '#DC002E', fontSize: 12, padding: '1px 4px', lineHeight: 1,
-                  }}
-                  title="Zeile löschen"
-                >
-                  ✕
-                </button>
-              </td>
+              {!readOnly && (
+                <td style={{ textAlign: 'center', padding: '4px 4px', verticalAlign: 'middle' }}>
+                  <button
+                    onClick={() => onDelete(idx)}
+                    style={{
+                      border: 'none', background: 'none', cursor: 'pointer',
+                      color: '#DC002E', fontSize: 12, padding: '1px 4px', lineHeight: 1,
+                    }}
+                    title="Zeile löschen"
+                  >
+                    ✕
+                  </button>
+                </td>
+              )}
               {columns.map((col) => (
                 <td key={col.key} style={{ padding: '3px 4px', verticalAlign: 'middle' }}>
                   <SdpCell
@@ -243,6 +258,7 @@ function SdpTable({
                     value={row[col.key]}
                     row={row}
                     onChange={(val) => onUpdate(idx, col.key, val)}
+                    readOnly={readOnly}
                   />
                 </td>
               ))}
@@ -271,13 +287,24 @@ function SdpCell({
   value,
   row,
   onChange,
+  readOnly = false,
 }: {
   colDef: ColDef;
   value: unknown;
   row: Record<string, unknown>;
   onChange: (val: unknown) => void;
+  readOnly?: boolean;
 }) {
   const fachdienstBauteile = useStammdatenStore((s) => s.fachdienstBauteile);
+
+  if (readOnly) {
+    return (
+      <span style={{ fontSize: 12, padding: '4px 6px', display: 'block', color: '#3f3f46' }}>
+        {String(value ?? '')}
+      </span>
+    );
+  }
+
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '4px 6px', borderRadius: 4,
     border: '1px solid #e4e4e7', fontSize: 12, fontFamily: 'inherit',
