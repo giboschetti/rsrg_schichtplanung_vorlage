@@ -34,5 +34,5 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy Hosting + Firestore rules
-        run: firebase deploy --only hosting,firestore --project rsrg-schichtplanung --non-interactive
+      - name: Deploy Hosting
+        run: firebase deploy --only hosting --project rsrg-schichtplanung --non-interactive
