@@ -6,6 +6,7 @@ import { ShiftDetailPanel } from '@/components/sdp/ShiftDetailPanel';
 import { TimelineGrid } from '@/components/timeline/TimelineGrid';
 import { TimelineFilterBar, KwToolbar } from '@/components/timeline/TimelineControls';
 import { useProject } from '@/hooks/useProject';
+import { useAutoSave } from '@/hooks/useAutoSave';
 import { useUiStore } from '@/stores/uiStore';
 import { StammdatenPanel } from '@/components/StammdatenPanel';
 import { IntervallePdfDialog } from '@/components/IntervallePdfDialog';
@@ -45,7 +46,8 @@ const TABS = [
 
 export default function PlannerPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { loading, error, save, saving } = useProject(projectId);
+  const { loading, error } = useProject(projectId);
+  const { syncing } = useAutoSave(projectId, { enabled: !loading });
   const activeTab = useUiStore((s) => s.activeTab);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
 
@@ -79,7 +81,7 @@ export default function PlannerPage() {
         background: '#f8f8f9',
       }}
     >
-      <AppHeader onSave={save} saving={saving} />
+      <AppHeader syncing={syncing} />
 
       {/* Tab bar */}
       <div style={{

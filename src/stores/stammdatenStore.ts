@@ -1,12 +1,41 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useProjectDocumentDirtyStore } from '@/stores/projectDocumentDirtyStore';
 import type { FachdienstBauteile, MitarbeiterRow, ProjectStamFormFields, ShiftConfig } from '@/types';
 import { EMPTY_PROJECT_STAM_FORM } from '@/types';
 
-function touchDocumentDirty(): void {
-  useProjectDocumentDirtyStore.getState().markDirty();
+// ─── Write-channel callbacks ─────────────────────────────────────────────────
+// Registered by useAutoSave. User-action setters call these; load-only bulk
+// setters (setFachdienstBauteile, setMitarbeiter) do not.
+
+type StammdatenWriteCallback = (stammdaten: unknown) => void;
+type MitarbeiterWriteCallback = (mitarbeiter: MitarbeiterRow[]) => void;
+
+let _onStammdatenWrite: StammdatenWriteCallback | null = null;
+let _onMitarbeiterWrite: MitarbeiterWriteCallback | null = null;
+
+export function registerStammdatenWriteCallbacks(
+  onStammdaten: StammdatenWriteCallback,
+  onMitarbeiter: MitarbeiterWriteCallback,
+): void {
+  _onStammdatenWrite = onStammdaten;
+  _onMitarbeiterWrite = onMitarbeiter;
 }
+
+export function clearStammdatenWriteCallbacks(): void {
+  _onStammdatenWrite = null;
+  _onMitarbeiterWrite = null;
+}
+
+// ─── Store ───────────────────────────────────────────────────────────────────
+
+function newId(): string {
+  return `m_${Math.random().toString(36).slice(2)}`;
+}
+
+export const DEFAULT_SHIFT_CONFIG: ShiftConfig = {
+  tag: { von: '07:00', bis: '19:00' },
+  nacht: { von: '19:00', bis: '07:00' },
+};
 
 interface StammdatenState {
   fachdienstBauteile: FachdienstBauteile;
@@ -27,15 +56,6 @@ interface StammdatenState {
   removeMitarbeiterRow: (id: string) => void;
 }
 
-function newId(): string {
-  return `m_${Math.random().toString(36).slice(2)}`;
-}
-
-export const DEFAULT_SHIFT_CONFIG: ShiftConfig = {
-  tag: { von: '07:00', bis: '19:00' },
-  nacht: { von: '19:00', bis: '07:00' },
-};
-
 export const useStammdatenStore = create<StammdatenState>()(
   persist(
     (set, get) => ({
@@ -44,33 +64,31 @@ export const useStammdatenStore = create<StammdatenState>()(
       projectForm: { ...EMPTY_PROJECT_STAM_FORM },
       mitarbeiter: [],
 
+      // Load-only — no write callback.
       setFachdienstBauteile: (data) => {
         set({ fachdienstBauteile: data });
-        touchDocumentDirty();
       },
 
       addBauteil: (fachdienst, bauteil) => {
         const s = get();
         const existing = s.fachdienstBauteile[fachdienst] ?? [];
         if (existing.includes(bauteil)) return;
-        set({
-          fachdienstBauteile: {
-            ...s.fachdienstBauteile,
-            [fachdienst]: [...existing, bauteil],
-          },
-        });
-        touchDocumentDirty();
+        const fachdienstBauteile = {
+          ...s.fachdienstBauteile,
+          [fachdienst]: [...existing, bauteil],
+        };
+        set({ fachdienstBauteile });
+        _onStammdatenWrite?.({ fachdienstBauteile, shiftConfig: get().shiftConfig, ...get().projectForm });
       },
 
       removeBauteil: (fachdienst, idx) => {
         set((s) => {
           const existing = [...(s.fachdienstBauteile[fachdienst] ?? [])];
           existing.splice(idx, 1);
-          return {
-            fachdienstBauteile: { ...s.fachdienstBauteile, [fachdienst]: existing },
-          };
+          const fachdienstBauteile = { ...s.fachdienstBauteile, [fachdienst]: existing };
+          _onStammdatenWrite?.({ fachdienstBauteile, shiftConfig: s.shiftConfig, ...s.projectForm });
+          return { fachdienstBauteile };
         });
-        touchDocumentDirty();
       },
 
       getBauteileForFachdienst: (fachdienst) =>
@@ -78,38 +96,45 @@ export const useStammdatenStore = create<StammdatenState>()(
 
       setShiftConfig: (cfg) => {
         set({ shiftConfig: cfg });
-        touchDocumentDirty();
+        const s = get();
+        _onStammdatenWrite?.({ fachdienstBauteile: s.fachdienstBauteile, shiftConfig: cfg, ...s.projectForm });
       },
 
       setProjectForm: (p) => {
-        set((s) => ({ projectForm: { ...s.projectForm, ...p } }));
-        touchDocumentDirty();
+        set((s) => {
+          const projectForm = { ...s.projectForm, ...p };
+          _onStammdatenWrite?.({ fachdienstBauteile: s.fachdienstBauteile, shiftConfig: s.shiftConfig, ...projectForm });
+          return { projectForm };
+        });
       },
 
+      // Load-only — no write callback.
       setMitarbeiter: (rows) => {
         set({ mitarbeiter: rows });
-        touchDocumentDirty();
       },
 
       addMitarbeiterRow: () => {
-        set((s) => ({
-          mitarbeiter: [...s.mitarbeiter, { id: newId() }],
-        }));
-        touchDocumentDirty();
+        set((s) => {
+          const mitarbeiter = [...s.mitarbeiter, { id: newId() }];
+          _onMitarbeiterWrite?.(mitarbeiter);
+          return { mitarbeiter };
+        });
       },
 
       updateMitarbeiterRow: (id, patch) => {
-        set((s) => ({
-          mitarbeiter: s.mitarbeiter.map((r) => (r.id === id ? { ...r, ...patch } : r)),
-        }));
-        touchDocumentDirty();
+        set((s) => {
+          const mitarbeiter = s.mitarbeiter.map((r) => (r.id === id ? { ...r, ...patch } : r));
+          _onMitarbeiterWrite?.(mitarbeiter);
+          return { mitarbeiter };
+        });
       },
 
       removeMitarbeiterRow: (id) => {
-        set((s) => ({
-          mitarbeiter: s.mitarbeiter.filter((r) => r.id !== id),
-        }));
-        touchDocumentDirty();
+        set((s) => {
+          const mitarbeiter = s.mitarbeiter.filter((r) => r.id !== id);
+          _onMitarbeiterWrite?.(mitarbeiter);
+          return { mitarbeiter };
+        });
       },
     }),
     {

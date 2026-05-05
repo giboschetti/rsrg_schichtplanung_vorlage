@@ -1,21 +1,18 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '@/context/AuthContext';
 import { usePlannerStore } from '@/stores/plannerStore';
-import { useProjectDocumentDirtyStore } from '@/stores/projectDocumentDirtyStore';
 import { exportXlsx } from '@/lib/exportXlsx';
 import { exportPdf } from '@/lib/exportPdf';
 import { AirtableBabSyncButton } from '@/components/AirtableBabSyncButton';
 
 interface AppHeaderProps {
-  onSave: () => void;
-  saving: boolean;
+  syncing: boolean;
 }
 
-export function AppHeader({ onSave, saving }: AppHeaderProps) {
+export function AppHeader({ syncing }: AppHeaderProps) {
   const navigate = useNavigate();
   const { user, signOut } = useAuthContext();
   const projectName = usePlannerStore((s) => s.projectName);
-  const dirty = useProjectDocumentDirtyStore((s) => s.dirty);
   const kwList = usePlannerStore((s) => s.kwList);
   const workItems = usePlannerStore((s) => s.workItems);
 
@@ -34,7 +31,6 @@ export function AppHeader({ onSave, saving }: AppHeaderProps) {
       flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-        {/* Size box explicitly: Tailwind preflight uses img{max-width:100%;height:auto} which overrides height="" */}
         <button
           type="button"
           onClick={() => navigate('/')}
@@ -63,9 +59,18 @@ export function AppHeader({ onSave, saving }: AppHeaderProps) {
         <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 15, color: '#09090b' }}>
           {projectName || 'Schichtplanung'}
         </div>
-        {dirty && (
-          <span style={{ fontSize: 11, color: '#a16207', background: '#fef9c3', borderRadius: 9999, padding: '2px 8px' }}>
-            Ungespeichert
+        {syncing && (
+          <span style={{ fontSize: 11, color: '#71717a', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{
+              display: 'inline-block',
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#FF6300',
+              opacity: 0.7,
+              animation: 'pulse 1.2s ease-in-out infinite',
+            }} />
+            Speichern…
           </span>
         )}
       </div>
@@ -82,19 +87,6 @@ export function AppHeader({ onSave, saving }: AppHeaderProps) {
           style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #e4e4e7', background: '#fff', fontSize: 12, cursor: 'pointer', color: '#09090b' }}
         >
           PDF
-        </button>
-        <button
-          type="button"
-          onClick={() => void onSave()}
-          disabled={saving || !dirty}
-          style={{
-            padding: '5px 14px', borderRadius: 6, border: 'none',
-            background: dirty ? '#FF6300' : '#e4e4e7',
-            color: dirty ? '#fff' : '#71717a',
-            fontSize: 13, fontWeight: 600, cursor: saving || !dirty ? 'default' : 'pointer',
-          }}
-        >
-          {saving ? 'Speichern…' : 'Speichern'}
         </button>
         {user && (
           <span style={{ fontSize: 12, color: '#71717a' }}>{user.displayName ?? user.email}</span>

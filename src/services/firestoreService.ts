@@ -99,38 +99,56 @@ export async function loadProject(projectId: string): Promise<Project | null> {
   } as Project;
 }
 
-// ─── Save project snapshot ──────────────────────────────────────────────────
+// ─── Real-time section-level writes ─────────────────────────────────────────
+//
+// Each function writes exactly one field path. CRON automation owns
+// `snapshot.workItems.<key>.intervalle`; the React app owns everything else.
+// Write authority is structural — no runtime coordination needed.
 
-// Sections the React app owns. `intervalle` is intentionally excluded —
-// it is written exclusively by the Python CRON and must never be touched here.
-const REACT_OWNED_SECTIONS = ['tasks', 'personal', 'inventar', 'material', 'fremdleistung'] as const;
-
-export async function saveProjectSnapshot(
+export async function writeCellSection(
   projectId: string,
-  snapshot: ProjectSnapshot,
+  cellKey: string,
+  section: string,
+  items: unknown[],
 ): Promise<void> {
   const ref = doc(db, PROJECTS_COL, projectId);
-  const snapshotClean = stripUndefinedForFirestore(snapshot) as ProjectSnapshot;
-
-  // Use Firestore field-level dot-notation paths so React never overwrites
-  // intervalle arrays; those BAB rows belong to the external feed.
-  const updates: Record<string, unknown> = {
-    'snapshot.kwList':      snapshotClean.kwList,
-    'snapshot.stammdaten':  snapshotClean.stammdaten,
-    'snapshot.mitarbeiter': snapshotClean.mitarbeiter ?? [],
+  await updateDoc(ref, {
+    [`snapshot.workItems.${cellKey}.${section}`]: stripUndefinedForFirestore(items),
     updatedAt: serverTimestamp(),
-  };
+  });
+}
 
-  for (const [key, cell] of Object.entries(snapshotClean.workItems)) {
-    for (const section of REACT_OWNED_SECTIONS) {
-      const val = (cell as Record<string, unknown>)[section];
-      if (val !== undefined) {
-        updates[`snapshot.workItems.${key}.${section}`] = val;
-      }
-    }
-  }
+export async function writeKwList(
+  projectId: string,
+  kwList: unknown[],
+): Promise<void> {
+  const ref = doc(db, PROJECTS_COL, projectId);
+  await updateDoc(ref, {
+    'snapshot.kwList': stripUndefinedForFirestore(kwList),
+    updatedAt: serverTimestamp(),
+  });
+}
 
-  await updateDoc(ref, updates);
+export async function writeStammdaten(
+  projectId: string,
+  stammdaten: unknown,
+): Promise<void> {
+  const ref = doc(db, PROJECTS_COL, projectId);
+  await updateDoc(ref, {
+    'snapshot.stammdaten': stripUndefinedForFirestore(stammdaten),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function writeMitarbeiter(
+  projectId: string,
+  mitarbeiter: unknown[],
+): Promise<void> {
+  const ref = doc(db, PROJECTS_COL, projectId);
+  await updateDoc(ref, {
+    'snapshot.mitarbeiter': stripUndefinedForFirestore(mitarbeiter),
+    updatedAt: serverTimestamp(),
+  });
 }
 
 // ─── Subscribe to real-time project updates ─────────────────────────────────

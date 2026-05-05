@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useProjectDocumentDirtyStore } from '@/stores/projectDocumentDirtyStore';
 import type {
   KalenderWoche,
   WorkItems,
@@ -9,9 +8,30 @@ import type {
   ShiftId,
 } from '@/types';
 
-function markDocumentDirty(): void {
-  useProjectDocumentDirtyStore.getState().markDirty();
+// ─── Write-channel callbacks ─────────────────────────────────────────────────
+// Registered by useAutoSave. Only user-action setters call these — load-only
+// bulk setters (setWorkItems, setKwList) do not, preventing write loops.
+
+type SectionWriteCallback = (cellKey: string, section: SdpSection, items: unknown[]) => void;
+type KwWriteCallback = (kwList: KalenderWoche[]) => void;
+
+let _onSectionWrite: SectionWriteCallback | null = null;
+let _onKwWrite: KwWriteCallback | null = null;
+
+export function registerPlannerWriteCallbacks(
+  onSection: SectionWriteCallback,
+  onKw: KwWriteCallback,
+): void {
+  _onSectionWrite = onSection;
+  _onKwWrite = onKw;
 }
+
+export function clearPlannerWriteCallbacks(): void {
+  _onSectionWrite = null;
+  _onKwWrite = null;
+}
+
+// ─── Store ───────────────────────────────────────────────────────────────────
 
 function wiKey(kwId: string, dayIdx: number, shiftId: ShiftId): WorkItemKey {
   return `${kwId}__${dayIdx}__${shiftId}`;
@@ -46,20 +66,26 @@ export const usePlannerStore = create<PlannerState>()(
       workItems: {},
 
       setProject: (id, name) => set({ projectId: id, projectName: name }),
+
+      // Load-only — no write callback.
       setKwList: (list) => set({ kwList: list }),
+
+      // Load-only — no write callback.
       setWorkItems: (items) => set({ workItems: items }),
 
       addKw: (kw) =>
         set((s) => {
           if (s.kwList.find((k) => k.id === kw.id)) return {};
-          markDocumentDirty();
-          return { kwList: [...s.kwList, kw] };
+          const kwList = [...s.kwList, kw];
+          _onKwWrite?.(kwList);
+          return { kwList };
         }),
 
       removeKw: (kwId) =>
         set((s) => {
-          markDocumentDirty();
-          return { kwList: s.kwList.filter((k) => k.id !== kwId) };
+          const kwList = s.kwList.filter((k) => k.id !== kwId);
+          _onKwWrite?.(kwList);
+          return { kwList };
         }),
 
       getSection: <T>(kwId: string, dayIdx: number, shift: ShiftId, section: SdpSection): T[] => {
@@ -76,12 +102,12 @@ export const usePlannerStore = create<PlannerState>()(
         rows: T[],
       ) =>
         set((s) => {
-          markDocumentDirty();
           const key = wiKey(kwId, dayIdx, shift);
           const updated: WorkItems = {
             ...s.workItems,
             [key]: { ...s.workItems[key], [section]: rows },
           };
+          _onSectionWrite?.(key, section, rows as unknown[]);
           return { workItems: updated };
         }),
     }),
