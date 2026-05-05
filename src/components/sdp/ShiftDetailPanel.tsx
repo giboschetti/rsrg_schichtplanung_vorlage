@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { useState, useRef, useEffect } from 'react';
 import { useUiStore } from '@/stores/uiStore';
 import { usePlannerStore } from '@/stores/plannerStore';
 import { useStammdatenStore } from '@/stores/stammdatenStore';
@@ -297,6 +298,19 @@ function SdpCell({
 }) {
   const fachdienstBauteile = useStammdatenStore((s) => s.fachdienstBauteile);
 
+  // Local state for text/number inputs — keeps typing fast by avoiding a Zustand
+  // store update (and the resulting timeline re-render cascade) on every keystroke.
+  // Committed to Zustand only on blur.
+  const [localValue, setLocalValue] = useState(String(value ?? ''));
+  const isFocused = useRef(false);
+
+  // Sync from the store when the field is not focused (e.g. Firestore live update).
+  useEffect(() => {
+    if (!isFocused.current) {
+      setLocalValue(String(value ?? ''));
+    }
+  }, [value]);
+
   if (readOnly) {
     return (
       <span style={{ fontSize: 12, padding: '4px 6px', display: 'block', color: '#3f3f46' }}>
@@ -311,6 +325,7 @@ function SdpCell({
     background: '#fff',
   };
 
+  // Dropdowns and pickers fire once per selection — no cascade risk, keep immediate.
   if (colDef.type === 'bauteil-select') {
     const fd = String(row.fachdienst ?? '');
     const choices = fachdienstBauteile[fd] ?? [];
@@ -331,17 +346,6 @@ function SdpCell({
         <option value="">—</option>
         {colDef.options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
-    );
-  }
-
-  if (colDef.type === 'number') {
-    return (
-      <input
-        type="number"
-        value={String(value ?? '')}
-        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : '')}
-        style={{ ...inputStyle, width: colDef.width ?? 70, textAlign: 'right' }}
-      />
     );
   }
 
@@ -367,11 +371,34 @@ function SdpCell({
     );
   }
 
+  // Number: keep as string while typing so "1." and leading "-" work naturally.
+  if (colDef.type === 'number') {
+    return (
+      <input
+        type="number"
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onFocus={() => { isFocused.current = true; }}
+        onBlur={() => {
+          isFocused.current = false;
+          onChange(localValue !== '' ? Number(localValue) : '');
+        }}
+        style={{ ...inputStyle, width: colDef.width ?? 70, textAlign: 'right' }}
+      />
+    );
+  }
+
+  // Text (default): local state while typing, commit on blur.
   return (
     <input
       type="text"
-      value={String(value ?? '')}
-      onChange={(e) => onChange(e.target.value)}
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onFocus={() => { isFocused.current = true; }}
+      onBlur={() => {
+        isFocused.current = false;
+        onChange(localValue);
+      }}
       style={inputStyle}
     />
   );
