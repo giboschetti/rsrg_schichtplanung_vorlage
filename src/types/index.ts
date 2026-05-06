@@ -22,7 +22,7 @@ export const SDP_FUNKTION_VALUES = [
 ] as const;
 export type PersonalFunktion = (typeof SDP_FUNKTION_VALUES)[number] | string;
 
-export const SDP_RES_STATUS_VALUES = ['Planung', 'Bestellt', 'Bestätigt'] as const;
+export const SDP_RES_STATUS_VALUES = ['Planung', 'Bestellt', 'Bestätigt', 'Storniert'] as const;
 export type ResStatus = (typeof SDP_RES_STATUS_VALUES)[number] | '';
 
 export const SDP_INTERVALLE_STATUS_VALUES = [

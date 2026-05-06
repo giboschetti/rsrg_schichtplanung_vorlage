@@ -112,7 +112,7 @@ _Avoid_: viewer
 - **Zusätzlicher Bedarf** is currently typed as an `IntervalleStatus` value alongside CRON-written statuses, but it has fundamentally different write authority (planner, not CRON). Mixing them in one section creates a write-authority conflict. Proposed resolution: promote it to a dedicated timeline section with its own UI input, separate from Intervalle.
 - The code calls the Kontaktliste `mitarbeiter`/`MitarbeiterRow` — misleading because these are key contacts, not the workforce being planned. Rename candidate.
 - `babNr` on `TaskItem` is obsolete — BABs and Tätigkeiten are independent objects with no direct link.
-- `Storniert` is the intended cancelled ResStatus but is missing from `SDP_RES_STATUS_VALUES` in `src/types/index.ts`.
+- `Storniert` — resolved and implemented. It is now in `SDP_RES_STATUS_VALUES`; cancelled entries display with strikethrough on timeline chips.
 
 ## Relationships
 

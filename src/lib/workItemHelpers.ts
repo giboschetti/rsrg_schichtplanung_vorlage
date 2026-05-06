@@ -58,6 +58,7 @@ export function chipClassFromResStatus(item: Record<string, unknown>, sectionId:
   if (v === 'Planung') return 'chip-planung';
   if (v === 'Bestellt') return 'chip-bestellt';
   if (v === 'Bestätigt') return 'chip-bestaetigt';
+  if (v === 'Storniert') return 'chip-storniert';
   return 'chip-default';
 }
 

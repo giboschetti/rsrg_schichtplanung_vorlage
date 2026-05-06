@@ -63,5 +63,7 @@ body {
 .chip-planung     .chip-dot { background: #ca8a04; }
 .chip-anfrage     { background: #ffe4e6; color: #be123c; }
 .chip-anfrage     .chip-dot { background: #e11d48; }
+.chip-storniert   { background: #f4f4f5; color: #a1a1aa; text-decoration: line-through; opacity: 0.7; }
+.chip-storniert   .chip-dot { background: #a1a1aa; }
 .chip-default     { background: #f4f4f5; color: #71717a; }
 .chip-default     .chip-dot { background: #a1a1aa; }
