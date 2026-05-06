@@ -62,23 +62,33 @@ export function applyPasteTargetToRecord(
   return out as Record<string, unknown>;
 }
 
-/** Whether paste is allowed for this target row (not group header / empty fachdienst band). */
-export function canPasteIntoRow(meta: TlRowMeta): boolean {
-  if (meta.sectionId === 'intervalle') return false;
-  if (meta.kind === 'group-header' || meta.kind === 'fachdienst') return false;
-  if (meta.kind === 'bauteil') return meta.sectionId === 'tasks';
-  if (meta.kind === 'funktion') return meta.sectionId === 'personal';
-  return meta.kind === 'simple';
-}
-
-export function clipboardSectionsCompatible(
+/** Single decision point for paste validity. Covers both row-type and content checks. */
+export function validatePaste(
   items: ClipboardBadgeRow[],
   targetMeta: TlRowMeta,
-): boolean {
-  if (!items.length) return false;
+): { allowed: boolean; reason?: string } {
+  // Row-type check
+  if (targetMeta.sectionId === 'intervalle')
+    return { allowed: false, reason: 'Hier einfügen nicht möglich' };
+  if (targetMeta.kind === 'group-header' || targetMeta.kind === 'fachdienst')
+    return { allowed: false, reason: 'Hier einfügen nicht möglich' };
+  if (targetMeta.kind === 'bauteil' && targetMeta.sectionId !== 'tasks')
+    return { allowed: false, reason: 'Hier einfügen nicht möglich' };
+  if (targetMeta.kind === 'funktion' && targetMeta.sectionId !== 'personal')
+    return { allowed: false, reason: 'Hier einfügen nicht möglich' };
+
+  // Content check
+  if (!items.length)
+    return { allowed: false, reason: 'Keine passenden Daten in der Zwischenablage' };
   const sec = items[0]!.section;
-  if (!items.every((r) => r.section === sec)) return false;
-  if (sec === 'tasks') return targetMeta.sectionId === 'tasks' && targetMeta.kind === 'bauteil';
-  if (sec === 'personal') return targetMeta.sectionId === 'personal' && targetMeta.kind === 'funktion';
-  return targetMeta.sectionId === sec && targetMeta.kind === 'simple';
+  if (!items.every((r) => r.section === sec))
+    return { allowed: false, reason: 'Einfügen: Abschnitt passt nicht zur Zeile' };
+  if (sec === 'tasks' && !(targetMeta.sectionId === 'tasks' && targetMeta.kind === 'bauteil'))
+    return { allowed: false, reason: 'Einfügen: Abschnitt passt nicht zur Zeile' };
+  if (sec === 'personal' && !(targetMeta.sectionId === 'personal' && targetMeta.kind === 'funktion'))
+    return { allowed: false, reason: 'Einfügen: Abschnitt passt nicht zur Zeile' };
+  if (sec !== 'tasks' && sec !== 'personal' && !(targetMeta.sectionId === sec && targetMeta.kind === 'simple'))
+    return { allowed: false, reason: 'Einfügen: Abschnitt passt nicht zur Zeile' };
+
+  return { allowed: true };
 }

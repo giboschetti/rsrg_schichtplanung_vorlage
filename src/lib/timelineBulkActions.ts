@@ -7,8 +7,7 @@ import {
   buildClipboardPayload,
   parseClipboardPayload,
   applyPasteTargetToRecord,
-  canPasteIntoRow,
-  clipboardSectionsCompatible,
+  validatePaste,
 } from '@/lib/timelineClipboard';
 
 function groupKey(r: TlBadgeRef): string {
@@ -64,10 +63,6 @@ export async function pasteTimelineClipboard(): Promise<void> {
     return;
   }
   const { meta, kwId, dayIdx, shift } = lastPasteContext;
-  if (!canPasteIntoRow(meta)) {
-    useUiStore.getState().showToast('Hier einfügen nicht möglich');
-    return;
-  }
   let text = '';
   try {
     text = await navigator.clipboard.readText();
@@ -76,20 +71,19 @@ export async function pasteTimelineClipboard(): Promise<void> {
     return;
   }
   const payload = parseClipboardPayload(text);
-  if (!payload?.items.length) {
-    useUiStore.getState().showToast('Keine passenden Daten in der Zwischenablage');
+  const items = payload?.items ?? [];
+  const { allowed, reason } = validatePaste(items, meta);
+  if (!allowed) {
+    useUiStore.getState().showToast(reason ?? 'Einfügen nicht möglich');
     return;
   }
-  if (!clipboardSectionsCompatible(payload.items, meta)) {
-    useUiStore.getState().showToast('Einfügen: Abschnitt passt nicht zur Zeile');
-    return;
-  }
-  const section = payload.items[0]!.section;
+  const section = items[0]!.section;
   const planner = usePlannerStore.getState();
   const rows = planner.getSection(kwId, dayIdx, shift, section);
-  const added = payload.items.map((it) => applyPasteTargetToRecord(it.section, it.record, meta));
+  const added = items.map((it) => applyPasteTargetToRecord(it.section, it.record, meta));
   planner.setSection(kwId, dayIdx, shift, section, [...rows, ...added] as never[]);
   useUiStore.getState().showToast(`${added.length} eingefügt`);
+
 }
 
 function isTypingTarget(el: Element | null): boolean {
