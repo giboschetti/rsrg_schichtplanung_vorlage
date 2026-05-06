@@ -3,7 +3,6 @@ import { useAuthContext } from '@/context/AuthContext';
 import { usePlannerStore } from '@/stores/plannerStore';
 import { exportXlsx } from '@/lib/exportXlsx';
 import { exportPdf } from '@/lib/exportPdf';
-import { AirtableBabSyncButton } from '@/components/AirtableBabSyncButton';
 
 interface AppHeaderProps {
   syncing: boolean;
@@ -75,7 +74,6 @@ export function AppHeader({ syncing }: AppHeaderProps) {
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <AirtableBabSyncButton />
         <button
           onClick={() => exportXlsx(projectName, kwList, workItems)}
           style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #e4e4e7', background: '#fff', fontSize: 12, cursor: 'pointer', color: '#09090b' }}
