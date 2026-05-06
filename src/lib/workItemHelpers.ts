@@ -1,12 +1,17 @@
-import type {
-  TaskItem,
-  PersonalItem,
-  SdpSection,
-  WorkItems,
-} from '@/types';
+import type { TaskItem, PersonalItem, WorkItems } from '@/types';
 import { SDP_FUNKTION_VALUES, FACHDIENST_VALUES } from '@/types';
 
+/**
+ * Domain helpers for work-item aggregation and filtering.
+ * These functions encode the Fachdienst → Bauteil → Tätigkeit hierarchy
+ * and the Funktion grouping for Personal.
+ *
+ * Display logic lives in chipHelpers.ts.
+ * Migration logic lives in mergeFirestoreSnapshot.ts.
+ */
+
 // ─── Normalization ──────────────────────────────────────────────────────────
+// Canonical fallback values match the domain vocabulary in CONTEXT.md.
 
 export function normalizePersonalFunktion(raw: string | undefined): string {
   return String(raw ?? '').trim() || 'Ohne Funktion';
@@ -24,68 +29,10 @@ export function normalizeTaetigkeit(raw: string | undefined): string {
   return String(raw ?? '').trim() || 'Ohne Tätigkeit';
 }
 
-// ─── Item label for timeline chips ─────────────────────────────────────────
+// ─── Aggregation: derive visible rows from all Shift Cells ──────────────────
 
-export function getItemLabel(item: Record<string, unknown>, sectionId: SdpSection): string {
-  if (sectionId === 'tasks') return (item.taetigkeit as string) || '–';
-  if (sectionId === 'personal') return ((item.name as string) ?? '').trim() || '–';
-  if (sectionId === 'inventar') return (item.geraet as string) || '–';
-  if (sectionId === 'material') return (item.material as string) || '–';
-  if (sectionId === 'fremdleistung') return (item.firma as string) || '–';
-  if (sectionId === 'intervalle') {
-    return (
-      (item.babNr as string) ||
-      (item.babTitel as string) ||
-      (item.gleissperrungen as string) ||
-      (item.status as string) ||
-      '–'
-    );
-  }
-  return '–';
-}
-
-// ─── Chip class from status ─────────────────────────────────────────────────
-
-export function chipClassFromResStatus(item: Record<string, unknown>, sectionId: SdpSection): string {
-  if (sectionId === 'intervalle') {
-    const v = item.status as string;
-    if (v === 'Verständigt') return 'chip-bestaetigt';
-    if (v === 'Entwurf' || v === 'Änderung') return 'chip-planung';
-    if (v === 'Zusätzlicher Bedarf') return 'chip-anfrage';
-    return 'chip-default';
-  }
-  const v = item.resStatus as string;
-  if (v === 'Planung') return 'chip-planung';
-  if (v === 'Bestellt') return 'chip-bestellt';
-  if (v === 'Bestätigt') return 'chip-bestaetigt';
-  if (v === 'Storniert') return 'chip-storniert';
-  return 'chip-default';
-}
-
-// ─── Tooltip title for chips ────────────────────────────────────────────────
-
-export function chipTitle(item: Record<string, unknown>, sectionId: SdpSection): string {
-  if (sectionId === 'tasks')
-    return [(item.taetigkeit as string), (item.resStatus as string)].filter(Boolean).join(' · ');
-  if (sectionId === 'personal') {
-    const fn = ((item.funktion as string) ?? '').trim();
-    const nm = ((item.name as string) ?? '').trim();
-    const who = fn && nm ? `${fn} – ${nm}` : nm || fn;
-    return [who, item.resStatus as string].filter(Boolean).join(' · ');
-  }
-  if (sectionId === 'inventar')
-    return [(item.geraet as string), (item.resStatus as string)].filter(Boolean).join(' · ');
-  if (sectionId === 'material')
-    return [(item.material as string), (item.resStatus as string)].filter(Boolean).join(' · ');
-  if (sectionId === 'fremdleistung')
-    return [(item.firma as string), (item.leistung as string), (item.resStatus as string)].filter(Boolean).join(' · ');
-  if (sectionId === 'intervalle')
-    return [(item.babNr as string), (item.babTitel as string), (item.status as string)].filter(Boolean).join(' · ');
-  return '';
-}
-
-// ─── Aggregation helpers for 3-level task hierarchy ────────────────────────
-
+/** Returns Fachdienste that have at least one Tätigkeit in any Shift Cell,
+ *  ordered by the canonical FACHDIENST_VALUES list, then alphabetically. */
 export function getUsedFachdienste(workItems: WorkItems): string[] {
   const set = new Set<string>();
   Object.values(workItems).forEach((cell) => {
@@ -99,7 +46,13 @@ export function getUsedFachdienste(workItems: WorkItems): string[] {
   return [...ordered, ...extras];
 }
 
-export function getBauteileInUseForFachdienst(workItems: WorkItems, fachdienst: string, masterBauteile: string[]): string[] {
+/** Returns Bauteile in use for a given Fachdienst, ordered by the master
+ *  catalogue, then alphabetically for any that aren't in the catalogue. */
+export function getBauteileInUseForFachdienst(
+  workItems: WorkItems,
+  fachdienst: string,
+  masterBauteile: string[],
+): string[] {
   const set = new Set<string>();
   Object.values(workItems).forEach((cell) => {
     (cell?.tasks ?? [])
@@ -111,6 +64,8 @@ export function getBauteileInUseForFachdienst(workItems: WorkItems, fachdienst: 
   return [...ordered, ...extras];
 }
 
+/** Returns Personal Funktionen in use across all Shift Cells,
+ *  ordered by the canonical SDP_FUNKTION_VALUES list. */
 export function getUsedPersonalFunctions(workItems: WorkItems): string[] {
   const set = new Set<string>();
   Object.values(workItems).forEach((cell) => {
@@ -124,6 +79,8 @@ export function getUsedPersonalFunctions(workItems: WorkItems): string[] {
   return [...ordered, ...extras];
 }
 
+// ─── Filtering: narrow items for a specific timeline row ───────────────────
+
 export function getTasksByFachdienstBauteil(
   tasks: TaskItem[],
   fachdienst: string,
@@ -136,35 +93,4 @@ export function getTasksByFachdienstBauteil(
 
 export function getPersonalByFunktion(personal: PersonalItem[], funktion: string): PersonalItem[] {
   return personal.filter((r) => normalizePersonalFunktion(r.funktion) === funktion);
-}
-
-// ─── Migration helper (old task shape → new) ────────────────────────────────
-
-/** Bauteil from canonical keys, legacy `bauphaseBauteil`, or fuzzy keys (e.g. `Bauteil` in Firestore). */
-function pickTaskBauteil(raw: Record<string, unknown>): string {
-  const direct = raw.bauteil;
-  if (direct != null && String(direct).trim() !== '') return String(direct).trim();
-  const legacy = raw.bauphaseBauteil;
-  if (legacy != null && String(legacy).trim() !== '') return String(legacy).trim();
-  for (const [k, v] of Object.entries(raw)) {
-    if (k === 'id' || v == null) continue;
-    const s = String(v).trim();
-    if (!s) continue;
-    const kn = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (kn === 'bauteil' || kn === 'bauphasebauteil') return s;
-  }
-  return '';
-}
-
-export function migrateTaskItem(raw: Record<string, unknown>): TaskItem {
-  return {
-    id: (raw.id as string) || Math.random().toString(36).slice(2),
-    fachdienst: (raw.fachdienst as string) ?? 'Andere',
-    bauteil: pickTaskBauteil(raw),
-    taetigkeit: (raw.taetigkeit as string) ?? (raw.name as string) ?? '',
-    beschreibung: (raw.beschreibung as string) ?? '',
-    location: (raw.location as string) ?? '',
-    resStatus: (raw.resStatus as TaskItem['resStatus']) ?? '',
-    notes: (raw.notes as string) ?? '',
-  };
 }

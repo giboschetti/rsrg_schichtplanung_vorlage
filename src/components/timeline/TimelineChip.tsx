@@ -3,7 +3,7 @@ import {
   chipClassFromResStatus,
   chipTitle,
   getItemLabel,
-} from '@/lib/workItemHelpers';
+} from '@/lib/chipHelpers';
 import type { SdpSection } from '@/types';
 
 export function TimelineChip({

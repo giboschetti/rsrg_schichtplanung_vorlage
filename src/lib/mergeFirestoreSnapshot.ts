@@ -9,8 +9,6 @@ import type {
   TaskItem,
   WorkItems,
 } from '@/types';
-import { migrateTaskItem } from '@/lib/workItemHelpers';
-
 /** Legacy vanilla app used `kwId||dayIdx||shift` — React uses `__` (plannerStore wiKey). */
 const LEGACY_KEY_SEP = '||';
 const REACT_KEY_SEP = '__';
@@ -45,6 +43,37 @@ function buildStammdaten(
 
 function newRowId(): string {
   return `m_${Math.random().toString(36).slice(2)}`;
+}
+
+// ─── Tätigkeit migration ────────────────────────────────────────────────────
+// Coerces legacy and fuzzy Firestore shapes into the canonical TaskItem.
+
+function pickTaskBauteil(raw: Record<string, unknown>): string {
+  const direct = raw.bauteil;
+  if (direct != null && String(direct).trim() !== '') return String(direct).trim();
+  const legacy = raw.bauphaseBauteil;
+  if (legacy != null && String(legacy).trim() !== '') return String(legacy).trim();
+  for (const [k, v] of Object.entries(raw)) {
+    if (k === 'id' || v == null) continue;
+    const s = String(v).trim();
+    if (!s) continue;
+    const kn = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (kn === 'bauteil' || kn === 'bauphasebauteil') return s;
+  }
+  return '';
+}
+
+function migrateTaskItem(raw: Record<string, unknown>): TaskItem {
+  return {
+    id: (raw.id as string) || Math.random().toString(36).slice(2),
+    fachdienst: (raw.fachdienst as string) ?? 'Andere',
+    bauteil: pickTaskBauteil(raw),
+    taetigkeit: (raw.taetigkeit as string) ?? (raw.name as string) ?? '',
+    beschreibung: (raw.beschreibung as string) ?? '',
+    location: (raw.location as string) ?? '',
+    resStatus: (raw.resStatus as TaskItem['resStatus']) ?? '',
+    notes: (raw.notes as string) ?? '',
+  };
 }
 
 function intRowId(): string {
